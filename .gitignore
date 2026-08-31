@@ -1,0 +1,20 @@
+# Rust build artifacts
+/target/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Editor / IDE
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.iml
+
+# Local rawref data (when RAWREF_DATA_DIR points into the repo)
+.rawref/
+rawref-data/

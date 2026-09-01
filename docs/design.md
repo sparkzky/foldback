@@ -23,29 +23,41 @@ rawref 是一个独立 Rust CLI，在 agent 调用外部命令时：
 
 ```
 rawref (binary, src/main.rs)
-├── CLI 分发、环境路径、passthrough 编排
+├── CLI 分发、环境路径、passthrough 编排、RAWREF_REDUCERS env 读取
 └── rawref_lib (src/lib.rs)
-    ├── runner      — 子进程 capture，exit code 映射
-    ├── stash       — SQLite + blob 读写、ref 生命周期
-    ├── condenser   — 终端 display 精简（纯函数，无 IO）
-    ├── error       — RawrefError 与 exit code 映射
-    └── commands/   — output 子命令薄封装
-        ├── get     — byte-exact 读出
-        ├── tail    — 末 N 行
-        ├── grep    — 子串行匹配
-        ├── info    — 元数据人类可读输出
-        └── purge   — 过期清理
+    ├── runner           — 子进程 capture，exit code 映射
+    ├── stash            — SQLite + blob 读写、ref 生命周期
+    ├── argv             — 命令规范化 (NormalizedCommand)
+    ├── display/         — 输出精简管道（纯函数，无 IO）
+    │   ├── context      — CommandContext, ChannelContext
+    │   ├── outcome      — ReduceOutcome, 枚举类型
+    │   ├── marker       — 通用/专用 marker 构建
+    │   ├── generic      — Phase 1 通用 head/tail 算法
+    │   ├── registry     — Reducer trait, Registry
+    │   └── reducers/    — 专用 reducer 实现
+    │       ├── pytest   — pytest 输出精简
+    │       └── cargo_test — cargo test 输出精简
+    ├── condenser        — Phase 1 legacy（现通过 display::generic 调用）
+    ├── error            — RawrefError 与 exit code 映射
+    └── commands/        — output 子命令薄封装
+        ├── get          — byte-exact 读出
+        ├── tail         — 末 N 行
+        ├── grep         — 子串行匹配
+        ├── info         — 元数据人类可读输出
+        └── purge        — 过期清理
 ```
 
 | 模块 | 职责 | 不应承担 |
 |------|------|----------|
-| `main.rs` | argv 解析、`handle_run` / `handle_output` 编排、`RAWREF_DATA_DIR` | 存储细节、精简算法 |
-| `runner` | `Command::output()` 一次调用、Unix signal → `128+sig` | Stash、condense |
+| `main.rs` | argv 解析、`handle_run` / `handle_output` 编排、`RAWREF_DATA_DIR`、`RAWREF_REDUCERS` env 读取 | 存储细节、精简算法 |
+| `runner` | `Command::output()` 一次调用、Unix signal → `128+sig` | Stash、display |
 | `stash` | ref 生成、SHA-256 写入与读路径校验、`data_dir`/`blobs/` 0700、blob/`meta.db` 0600、TTL、expiry 校验 | 终端输出、精简 |
-| `condenser` | 阈值判断、head/tail/marker、无收益回退 | 任何持久化 |
+| `argv` | 命令 basename + 参数解析，生成 `NormalizedCommand` | 执行、联网 |
+| `display/*` | 三级管道：专用 candidate → 通用 generic → raw；纯函数、无 IO | 任何持久化、reducer spawn/IO |
+| `condenser` | Phase 1 legacy 后向兼容；现通过 `display::generic` 调用 | （仅历史模块） |
 | `commands/*` | 把 CLI 参数映射到 `Stash` API，写 stdout | 业务逻辑重复 |
 
-**依赖方向**：`main` → `commands` / `condenser` / `runner` / `stash` → `error`。`condenser` 与 `runner` 互不依赖。
+**依赖方向**：`main` → `commands` / `display` / `runner` / `stash` / `argv` → `error`。`display` 与 `runner` 互不依赖；`display` 内部 `reducers/` ← `registry`。
 
 **crate 布局**：二进制入口 `src/main.rs`，库 crate 名 `rawref_lib`（`src/lib.rs`），供单元测试与逻辑复用。
 
@@ -73,29 +85,42 @@ argv[1] 分支:
 
 ---
 
-## 4. Passthrough 时序（单次执行 + raw-first）
+## 4. Passthrough 时序（单次执行 + raw-first + 三级 display pipeline）
 
 ```
 handle_run(command, args)
-│
+    │
 ├─1─ runner::capture()          ← 唯一 Command::output() 调用
 │       └─ CaptureResult { stdout, stderr, exit_code, cwd, … }
 │
 ├─2─ Stash::open(data_dir)
-│       └─ 失败 → stash_result = None，stderr 告警，跳至 4（fail-open）
+│       └─ 失败 → stash_result = None，stderr 告警，跳至 5（fail-open）
 │
 ├─3─ stash.save(SaveArgs { … ttl_secs: DEFAULT_TTL_SECS })
 │       └─ 失败 → stash_result = None，stderr 告警
 │       └─ 成功 → (ref_id, expires_at)
 │
-├─4─ 写终端
+├─4─ 构建 CommandContext，规范化命令
+│       └─ cmd_ctx = CommandContext { command, args, normalized: argv::normalize(...), ... }
+│
+├─5─ 编排 display pipeline（raw-first 后调用）
+│       ├─ reducers_enabled = env("RAWREF_REDUCERS") != "0"
+│       ├─ stdout_out = display::render_channel(stdout_raw, ctx_stdout, registry, reducers_enabled)
+│       │              ├─ 三级尝试：
+│       │              │  1. 若启用 & 超阈值 → 专用 reducer (matched by normalized command)
+│       │              │  2. 若专用失败/无收益 → 通用 generic head/tail
+│       │              │  3. 若 generic 也无收益 → raw passthrough
+│       │              └─ 返回 ReduceOutcome { display, applied, view, marker_suffix, ... }
+│       └─ stderr_out = display::render_channel(...stderr_raw...) — 类似
+│
+├─6─ 写终端
 │       ├─ stash 成功：
-│       │     condense(stdout, ref_id, expires_at) → write stdout
-│       │     condense(stderr, ref_id, expires_at) → write stderr
+│       │     write stdout_out.display（含 marker 若 applied）
+│       │     write stderr_out.display（含 marker 若 applied）
 │       └─ stash 失败（fail-open）：
 │             write 原始 stdout / stderr，**无 marker、无精简**
 │
-└─5─ return captured.exit_code   ← 始终透传子进程 code，与 stash 成败无关
+└─7─ return captured.exit_code   ← 始终透传子进程 code，与 stash/display 成败无关
 ```
 
 ### 4.1 不变量
@@ -217,13 +242,32 @@ exceeds = len > 10KB OR line_count > 100
 
 ### 6.2 Marker 格式
 
+**Generic（通用 head/tail，Phase 1 兼容）**：
+
 ```text
 [rawref ref=<32-hex> raw=<bytes>b lines=<n> omitted=<m> expires=<YYYY-MM-DDTHH:MM:SSZ>]
 ```
 
 - 插入在 head 与 tail 之间，自带 trailing `\n`。
-- **每通道独立 marker**：stdout / stderr 分别 condense，同一 ref_id 但 `raw` / `lines` / `omitted` 按通道计算。
-- **fail-open 路径无 marker**：stash 失败时不调用 condenser。
+- `omitted=` 精确表示 head+tail 之间省略的**原始行数**。
+
+**Specialized（专用 reducer，pytest/cargo test）**：
+
+```text
+[rawref ref=<32-hex> raw=<bytes>b lines=<n> view=pytest mode=summary recoverability=retrievable expires=<YYYY-MM-DDTHH:MM:SSZ>]
+[rawref ref=<32-hex> raw=<bytes>b lines=<n> view=cargo-test mode=summary recoverability=retrievable expires=<YYYY-MM-DDTHH:MM:SSZ>]
+```
+
+- `view=` 声明使用了 pytest/cargo-test 专用 reducer
+- `mode=summary` 表示语义重组（失败块保留但进度行移除等）
+- `recoverability=retrievable` 声明完整 raw 已通过 `output get` 恢复
+- **不含** `omitted=`（语义重组后无法精确映射「原始行的哪些部分被移除」）
+- `raw=` 与 `lines=` 仍为**原始** raw 的字节数与行数
+
+**共通规则**：
+
+- 每通道独立 marker：stdout / stderr 分别 render，同一 ref_id 但 marker 按通道独立生成
+- **fail-open 路径无 marker**：stash 失败时不调用 display pipeline
 
 ### 6.3 与 Stash 的边界
 

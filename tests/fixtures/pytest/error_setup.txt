@@ -1,0 +1,140 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.0, pytest-7.4.0, pluggy-1.3.0
+rootdir: /home/user/project, configfile: pytest.ini
+plugins: anyio-3.7.1, cov-4.1.0, mock-3.12.0
+collected 86 items
+
+tests/test_unit.py::test_basic_001 PASSED                                [  0%]
+tests/test_unit.py::test_basic_002 PASSED                                [  1%]
+tests/test_unit.py::test_basic_003 PASSED                                [  2%]
+tests/test_unit.py::test_basic_004 PASSED                                [  3%]
+tests/test_unit.py::test_basic_005 PASSED                                [  4%]
+tests/test_unit.py::test_basic_006 PASSED                                [  5%]
+tests/test_unit.py::test_basic_007 PASSED                                [  6%]
+tests/test_unit.py::test_basic_008 PASSED                                [  8%]
+tests/test_unit.py::test_basic_009 PASSED                                [  9%]
+tests/test_unit.py::test_basic_010 PASSED                                [ 10%]
+tests/test_unit.py::test_basic_011 PASSED                                [ 11%]
+tests/test_unit.py::test_basic_012 PASSED                                [ 12%]
+tests/test_unit.py::test_basic_013 PASSED                                [ 13%]
+tests/test_unit.py::test_basic_014 PASSED                                [ 15%]
+tests/test_unit.py::test_basic_015 PASSED                                [ 16%]
+tests/test_unit.py::test_basic_016 PASSED                                [ 17%]
+tests/test_unit.py::test_basic_017 PASSED                                [ 18%]
+tests/test_unit.py::test_basic_018 PASSED                                [ 19%]
+tests/test_unit.py::test_basic_019 PASSED                                [ 20%]
+tests/test_unit.py::test_basic_020 PASSED                                [ 22%]
+tests/test_unit.py::test_basic_021 PASSED                                [ 23%]
+tests/test_unit.py::test_basic_022 PASSED                                [ 24%]
+tests/test_unit.py::test_basic_023 PASSED                                [ 25%]
+tests/test_unit.py::test_basic_024 PASSED                                [ 26%]
+tests/test_unit.py::test_basic_025 PASSED                                [ 27%]
+tests/test_unit.py::test_basic_026 PASSED                                [ 29%]
+tests/test_unit.py::test_basic_027 PASSED                                [ 30%]
+tests/test_unit.py::test_basic_028 PASSED                                [ 31%]
+tests/test_unit.py::test_basic_029 PASSED                                [ 32%]
+tests/test_unit.py::test_basic_030 PASSED                                [ 33%]
+tests/test_unit.py::test_basic_031 PASSED                                [ 34%]
+tests/test_unit.py::test_basic_032 PASSED                                [ 36%]
+tests/test_unit.py::test_basic_033 PASSED                                [ 37%]
+tests/test_unit.py::test_basic_034 PASSED                                [ 38%]
+tests/test_unit.py::test_basic_035 PASSED                                [ 39%]
+tests/test_unit.py::test_basic_036 PASSED                                [ 40%]
+tests/test_unit.py::test_basic_037 PASSED                                [ 41%]
+tests/test_unit.py::test_basic_038 PASSED                                [ 43%]
+tests/test_unit.py::test_basic_039 PASSED                                [ 44%]
+tests/test_unit.py::test_basic_040 PASSED                                [ 45%]
+tests/test_unit.py::test_basic_041 PASSED                                [ 46%]
+tests/test_unit.py::test_basic_042 PASSED                                [ 47%]
+tests/test_unit.py::test_basic_043 PASSED                                [ 48%]
+tests/test_unit.py::test_basic_044 PASSED                                [ 50%]
+tests/test_unit.py::test_basic_045 PASSED                                [ 51%]
+tests/test_unit.py::test_basic_046 PASSED                                [ 52%]
+tests/test_unit.py::test_basic_047 PASSED                                [ 53%]
+tests/test_unit.py::test_basic_048 PASSED                                [ 54%]
+tests/test_unit.py::test_basic_049 PASSED                                [ 55%]
+tests/test_unit.py::test_basic_050 PASSED                                [ 56%]
+tests/test_unit.py::test_basic_051 PASSED                                [ 58%]
+tests/test_unit.py::test_basic_052 PASSED                                [ 59%]
+tests/test_unit.py::test_basic_053 PASSED                                [ 60%]
+tests/test_unit.py::test_basic_054 PASSED                                [ 61%]
+tests/test_unit.py::test_basic_055 PASSED                                [ 62%]
+tests/test_unit.py::test_basic_056 PASSED                                [ 63%]
+tests/test_unit.py::test_basic_057 PASSED                                [ 65%]
+tests/test_unit.py::test_basic_058 PASSED                                [ 66%]
+tests/test_unit.py::test_basic_059 PASSED                                [ 67%]
+tests/test_unit.py::test_basic_060 PASSED                                [ 68%]
+tests/test_unit.py::test_basic_061 PASSED                                [ 69%]
+tests/test_unit.py::test_basic_062 PASSED                                [ 70%]
+tests/test_unit.py::test_basic_063 PASSED                                [ 72%]
+tests/test_unit.py::test_basic_064 PASSED                                [ 73%]
+tests/test_unit.py::test_basic_065 PASSED                                [ 74%]
+tests/test_unit.py::test_basic_066 PASSED                                [ 75%]
+tests/test_unit.py::test_basic_067 PASSED                                [ 76%]
+tests/test_unit.py::test_basic_068 PASSED                                [ 77%]
+tests/test_unit.py::test_basic_069 PASSED                                [ 79%]
+tests/test_unit.py::test_basic_070 PASSED                                [ 80%]
+tests/test_unit.py::test_basic_071 PASSED                                [ 81%]
+tests/test_unit.py::test_basic_072 PASSED                                [ 82%]
+tests/test_unit.py::test_basic_073 PASSED                                [ 83%]
+tests/test_unit.py::test_basic_074 PASSED                                [ 84%]
+tests/test_unit.py::test_basic_075 PASSED                                [ 86%]
+tests/test_unit.py::test_basic_076 PASSED                                [ 87%]
+tests/test_unit.py::test_basic_077 PASSED                                [ 88%]
+tests/test_unit.py::test_basic_078 PASSED                                [ 89%]
+tests/test_unit.py::test_basic_079 PASSED                                [ 90%]
+tests/test_unit.py::test_basic_080 PASSED                                [ 91%]
+tests/test_integration.py::test_requires_db_1 ERROR                      [ 93%]
+tests/test_integration.py::test_requires_db_2 ERROR                      [ 94%]
+tests/test_integration.py::test_requires_db_3 ERROR                      [ 95%]
+tests/test_integration.py::test_requires_db_4 ERROR                      [ 96%]
+tests/test_integration.py::test_requires_db_5 ERROR                      [ 97%]
+
+==================================== ERRORS ====================================
+______________ ERROR at setup of test_requires_db_1 _______________
+
+    @pytest.fixture
+    def db_connection():
+>       conn = connect('postgresql://localhost/testdb')
+E       ConnectionRefusedError: [Errno 111] Connection refused
+
+tests/conftest.py:12: ConnectionRefusedError
+______________ ERROR at setup of test_requires_db_2 _______________
+
+    @pytest.fixture
+    def db_connection():
+>       conn = connect('postgresql://localhost/testdb')
+E       ConnectionRefusedError: [Errno 111] Connection refused
+
+tests/conftest.py:12: ConnectionRefusedError
+______________ ERROR at setup of test_requires_db_3 _______________
+
+    @pytest.fixture
+    def db_connection():
+>       conn = connect('postgresql://localhost/testdb')
+E       ConnectionRefusedError: [Errno 111] Connection refused
+
+tests/conftest.py:12: ConnectionRefusedError
+______________ ERROR at setup of test_requires_db_4 _______________
+
+    @pytest.fixture
+    def db_connection():
+>       conn = connect('postgresql://localhost/testdb')
+E       ConnectionRefusedError: [Errno 111] Connection refused
+
+tests/conftest.py:12: ConnectionRefusedError
+______________ ERROR at setup of test_requires_db_5 _______________
+
+    @pytest.fixture
+    def db_connection():
+>       conn = connect('postgresql://localhost/testdb')
+E       ConnectionRefusedError: [Errno 111] Connection refused
+
+tests/conftest.py:12: ConnectionRefusedError
+=========================== short test summary info ============================
+ERROR tests/test_integration.py::test_requires_db_1 - ConnectionRefusedError: [Errno 111] Connection refused
+ERROR tests/test_integration.py::test_requires_db_2 - ConnectionRefusedError: [Errno 111] Connection refused
+ERROR tests/test_integration.py::test_requires_db_3 - ConnectionRefusedError: [Errno 111] Connection refused
+ERROR tests/test_integration.py::test_requires_db_4 - ConnectionRefusedError: [Errno 111] Connection refused
+ERROR tests/test_integration.py::test_requires_db_5 - ConnectionRefusedError: [Errno 111] Connection refused
+======================== 5 errors, 80 passed in 1.24s =========================

@@ -1,0 +1,134 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.0, pytest-7.4.0, pluggy-1.3.0
+rootdir: /home/user/project, configfile: pytest.ini
+plugins: anyio-3.7.1, cov-4.1.0, mock-3.12.0
+collected 100 items
+
+tests/test_legacy.py::test_old_api_001 PASSED                            [  0%]
+tests/test_legacy.py::test_old_api_002 PASSED                            [  1%]
+tests/test_legacy.py::test_old_api_003 PASSED                            [  2%]
+tests/test_legacy.py::test_old_api_004 PASSED                            [  3%]
+tests/test_legacy.py::test_old_api_005 PASSED                            [  4%]
+tests/test_legacy.py::test_old_api_006 PASSED                            [  5%]
+tests/test_legacy.py::test_old_api_007 PASSED                            [  6%]
+tests/test_legacy.py::test_old_api_008 PASSED                            [  7%]
+tests/test_legacy.py::test_old_api_009 PASSED                            [  8%]
+tests/test_legacy.py::test_old_api_010 PASSED                            [  9%]
+tests/test_legacy.py::test_old_api_011 PASSED                            [ 10%]
+tests/test_legacy.py::test_old_api_012 PASSED                            [ 11%]
+tests/test_legacy.py::test_old_api_013 PASSED                            [ 12%]
+tests/test_legacy.py::test_old_api_014 PASSED                            [ 13%]
+tests/test_legacy.py::test_old_api_015 PASSED                            [ 14%]
+tests/test_legacy.py::test_old_api_016 PASSED                            [ 15%]
+tests/test_legacy.py::test_old_api_017 PASSED                            [ 16%]
+tests/test_legacy.py::test_old_api_018 PASSED                            [ 17%]
+tests/test_legacy.py::test_old_api_019 PASSED                            [ 18%]
+tests/test_legacy.py::test_old_api_020 PASSED                            [ 19%]
+tests/test_legacy.py::test_old_api_021 PASSED                            [ 20%]
+tests/test_legacy.py::test_old_api_022 PASSED                            [ 21%]
+tests/test_legacy.py::test_old_api_023 PASSED                            [ 22%]
+tests/test_legacy.py::test_old_api_024 PASSED                            [ 23%]
+tests/test_legacy.py::test_old_api_025 PASSED                            [ 24%]
+tests/test_legacy.py::test_old_api_026 PASSED                            [ 25%]
+tests/test_legacy.py::test_old_api_027 PASSED                            [ 26%]
+tests/test_legacy.py::test_old_api_028 PASSED                            [ 27%]
+tests/test_legacy.py::test_old_api_029 PASSED                            [ 28%]
+tests/test_legacy.py::test_old_api_030 PASSED                            [ 29%]
+tests/test_legacy.py::test_old_api_031 PASSED                            [ 30%]
+tests/test_legacy.py::test_old_api_032 PASSED                            [ 31%]
+tests/test_legacy.py::test_old_api_033 PASSED                            [ 32%]
+tests/test_legacy.py::test_old_api_034 PASSED                            [ 33%]
+tests/test_legacy.py::test_old_api_035 PASSED                            [ 34%]
+tests/test_legacy.py::test_old_api_036 PASSED                            [ 35%]
+tests/test_legacy.py::test_old_api_037 PASSED                            [ 36%]
+tests/test_legacy.py::test_old_api_038 PASSED                            [ 37%]
+tests/test_legacy.py::test_old_api_039 PASSED                            [ 38%]
+tests/test_legacy.py::test_old_api_040 PASSED                            [ 39%]
+tests/test_legacy.py::test_old_api_041 PASSED                            [ 40%]
+tests/test_legacy.py::test_old_api_042 PASSED                            [ 41%]
+tests/test_legacy.py::test_old_api_043 PASSED                            [ 42%]
+tests/test_legacy.py::test_old_api_044 PASSED                            [ 43%]
+tests/test_legacy.py::test_old_api_045 PASSED                            [ 44%]
+tests/test_legacy.py::test_old_api_046 PASSED                            [ 45%]
+tests/test_legacy.py::test_old_api_047 PASSED                            [ 46%]
+tests/test_legacy.py::test_old_api_048 PASSED                            [ 47%]
+tests/test_legacy.py::test_old_api_049 PASSED                            [ 48%]
+tests/test_legacy.py::test_old_api_050 PASSED                            [ 49%]
+tests/test_legacy.py::test_old_api_051 PASSED                            [ 50%]
+tests/test_legacy.py::test_old_api_052 PASSED                            [ 51%]
+tests/test_legacy.py::test_old_api_053 PASSED                            [ 52%]
+tests/test_legacy.py::test_old_api_054 PASSED                            [ 53%]
+tests/test_legacy.py::test_old_api_055 PASSED                            [ 54%]
+tests/test_legacy.py::test_old_api_056 PASSED                            [ 55%]
+tests/test_legacy.py::test_old_api_057 PASSED                            [ 56%]
+tests/test_legacy.py::test_old_api_058 PASSED                            [ 57%]
+tests/test_legacy.py::test_old_api_059 PASSED                            [ 58%]
+tests/test_legacy.py::test_old_api_060 PASSED                            [ 59%]
+tests/test_legacy.py::test_old_api_061 PASSED                            [ 60%]
+tests/test_legacy.py::test_old_api_062 PASSED                            [ 61%]
+tests/test_legacy.py::test_old_api_063 PASSED                            [ 62%]
+tests/test_legacy.py::test_old_api_064 PASSED                            [ 63%]
+tests/test_legacy.py::test_old_api_065 PASSED                            [ 64%]
+tests/test_legacy.py::test_old_api_066 PASSED                            [ 65%]
+tests/test_legacy.py::test_old_api_067 PASSED                            [ 66%]
+tests/test_legacy.py::test_old_api_068 PASSED                            [ 67%]
+tests/test_legacy.py::test_old_api_069 PASSED                            [ 68%]
+tests/test_legacy.py::test_old_api_070 PASSED                            [ 69%]
+tests/test_legacy.py::test_old_api_071 PASSED                            [ 70%]
+tests/test_legacy.py::test_old_api_072 PASSED                            [ 71%]
+tests/test_legacy.py::test_old_api_073 PASSED                            [ 72%]
+tests/test_legacy.py::test_old_api_074 PASSED                            [ 73%]
+tests/test_legacy.py::test_old_api_075 PASSED                            [ 74%]
+tests/test_legacy.py::test_old_api_076 PASSED                            [ 75%]
+tests/test_legacy.py::test_old_api_077 PASSED                            [ 76%]
+tests/test_legacy.py::test_old_api_078 PASSED                            [ 77%]
+tests/test_legacy.py::test_old_api_079 PASSED                            [ 78%]
+tests/test_legacy.py::test_old_api_080 PASSED                            [ 79%]
+tests/test_legacy.py::test_old_api_081 PASSED                            [ 80%]
+tests/test_legacy.py::test_old_api_082 PASSED                            [ 81%]
+tests/test_legacy.py::test_old_api_083 PASSED                            [ 82%]
+tests/test_legacy.py::test_old_api_084 PASSED                            [ 83%]
+tests/test_legacy.py::test_old_api_085 PASSED                            [ 84%]
+tests/test_legacy.py::test_old_api_086 PASSED                            [ 85%]
+tests/test_legacy.py::test_old_api_087 PASSED                            [ 86%]
+tests/test_legacy.py::test_old_api_088 PASSED                            [ 87%]
+tests/test_legacy.py::test_old_api_089 PASSED                            [ 88%]
+tests/test_legacy.py::test_old_api_090 PASSED                            [ 89%]
+tests/test_legacy.py::test_old_api_091 PASSED                            [ 90%]
+tests/test_legacy.py::test_old_api_092 PASSED                            [ 91%]
+tests/test_legacy.py::test_old_api_093 PASSED                            [ 92%]
+tests/test_legacy.py::test_old_api_094 PASSED                            [ 93%]
+tests/test_legacy.py::test_old_api_095 PASSED                            [ 94%]
+tests/test_legacy.py::test_old_api_096 PASSED                            [ 95%]
+tests/test_legacy.py::test_old_api_097 PASSED                            [ 96%]
+tests/test_legacy.py::test_old_api_098 PASSED                            [ 97%]
+tests/test_legacy.py::test_old_api_099 PASSED                            [ 98%]
+tests/test_legacy.py::test_old_api_100 PASSED                            [ 99%]
+
+============================= warnings summary ==============================
+tests/test_legacy.py::test_old_api_001
+  /home/user/project/src/legacy_api.py:10: DeprecationWarning: function_v1 is deprecated, use function_v2 instead
+tests/test_legacy.py::test_old_api_002
+  /home/user/project/src/legacy_api.py:15: DeprecationWarning: function_v2 is deprecated, use function_v3 instead
+tests/test_legacy.py::test_old_api_003
+  /home/user/project/src/legacy_api.py:20: DeprecationWarning: function_v3 is deprecated, use function_v4 instead
+tests/test_legacy.py::test_old_api_004
+  /home/user/project/src/legacy_api.py:25: DeprecationWarning: function_v4 is deprecated, use function_v5 instead
+tests/test_legacy.py::test_old_api_005
+  /home/user/project/src/legacy_api.py:30: DeprecationWarning: function_v5 is deprecated, use function_v6 instead
+tests/test_legacy.py::test_old_api_006
+  /home/user/project/src/legacy_api.py:35: DeprecationWarning: function_v6 is deprecated, use function_v7 instead
+tests/test_legacy.py::test_old_api_007
+  /home/user/project/src/legacy_api.py:40: DeprecationWarning: function_v7 is deprecated, use function_v8 instead
+tests/test_legacy.py::test_old_api_008
+  /home/user/project/src/legacy_api.py:45: DeprecationWarning: function_v8 is deprecated, use function_v9 instead
+tests/test_legacy.py::test_old_api_009
+  /home/user/project/src/legacy_api.py:50: DeprecationWarning: function_v9 is deprecated, use function_v10 instead
+tests/test_legacy.py::test_old_api_010
+  /home/user/project/src/legacy_api.py:55: DeprecationWarning: function_v10 is deprecated, use function_v11 instead
+tests/test_legacy.py::test_old_api_011
+  /home/user/project/src/legacy_api.py:60: DeprecationWarning: function_v11 is deprecated, use function_v12 instead
+tests/test_legacy.py::test_old_api_012
+  /home/user/project/src/legacy_api.py:65: DeprecationWarning: function_v12 is deprecated, use function_v13 instead
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== 100 passed in 4.21s ============================

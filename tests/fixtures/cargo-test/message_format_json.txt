@@ -1,0 +1,6 @@
+{"type":"suite","event":"started","test_count":2}
+{"type":"test","event":"started","name":"tests::foo"}
+{"type":"test","name":"tests::foo","event":"ok","exec_time":0.001}
+{"type":"test","event":"started","name":"tests::bar"}
+{"type":"test","name":"tests::bar","event":"ok","exec_time":0.002}
+{"type":"suite","event":"ok","passed":2,"failed":0,"ignored":0,"measured":0,"filtered_out":0,"exec_time":0.003}

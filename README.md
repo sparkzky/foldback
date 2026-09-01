@@ -252,6 +252,67 @@ Ref IDs must be exactly **32 ASCII hex characters**; otherwise exit **2**.
 
 ---
 
+## Specialized output reduction (Phase 2)
+
+**pytest** and **cargo test** output is automatically reduced:
+
+```bash
+# Long pytest output is condensed to show failures, errors, and warnings summary
+rawref pytest tests/ --tb=short
+# [condensed stdout with failure blocks, short test summary, warnings]
+# [rawref ref=<32-hex> raw=<bytes>b lines=<n> view=pytest mode=summary recoverability=retrievable expires=…Z]
+
+# Note: pytest with -v/--verbose gates to generic condensing (see below)
+
+# Long cargo test output is condensed to show failed test names and blocks
+rawref cargo test --lib -- --nocapture
+# [condensed stdout with failed test names, failure blocks, final summary]
+# [rawref ref=<32-hex> raw=<bytes>b lines=<n> view=cargo-test mode=summary recoverability=retrievable expires=…Z]
+
+# Unknown commands use generic head/tail condensing
+rawref seq 1 500
+# [head 20 lines]
+# [rawref ref=<32-hex> raw=<bytes>b lines=<n> omitted=<m> expires=…Z]
+# [tail 20 lines]
+```
+
+**Passthrough gates** — specialized reduction is skipped for machine-readable outputs:
+
+```bash
+# pytest: -v, -vv, --verbose, --collect-only, --json-report, --junitxml → uses generic
+rawref pytest tests/ -v          # Falls back to generic head/tail (no view= in marker)
+
+# cargo: --message-format=json, --message-format=terse → uses generic
+rawref cargo test --message-format json  # Falls back to generic head/tail
+```
+
+**Opt out** of all specialized reduction (Phase 1 generic head/tail only):
+
+```bash
+RAWREF_REDUCERS=0 rawref pytest tests/
+# [always uses Phase 1 generic condenser, no view= field in marker]
+```
+
+### Marker fields explained
+
+**Generic (Phase 1 style)**:
+- `ref` — 32-char hex ref handle for recovery
+- `raw` — total original bytes
+- `lines` — total original lines
+- `omitted` — lines hidden between head and tail
+- `expires` — UTC RFC 3339 expiry time (7 days by default)
+
+**Specialized (pytest / cargo test)**:
+- `ref`, `raw`, `lines`, `expires` — as above
+- `view` — `pytest` or `cargo-test`
+- `mode` — always `summary` (semantic reduction applied)
+- `recoverability` — always `retrievable` (full raw stashed via `output get`)
+- **Note**: specialized marker does **not** include `omitted=` (content is semantically recomposed, not truncated)
+
+**Inline vs. end-to-end**: Specialized summary is **lossy on the terminal** (progress lines etc. removed) but **fully recoverable** via `rawref output get <ref>`.
+
+---
+
 ## Limitations (current MVP)
 
 These are **not** implemented yet; do not expect them to work:
@@ -263,8 +324,10 @@ These are **not** implemented yet; do not expect them to work:
 - **No watch / server mode** — bounded-lifetime commands only; no streaming
   compression or file watching.
 - **No Windows** — Unix blob permissions (`0600`) and signal exit semantics.
-- **No command-specific reducers** — generic head/tail condensing only (no
-  specialized `git diff` / `pytest` filters yet).
+- **No more command-specific reducers yet** — Phase 2 covers pytest and cargo test;
+  `git diff`, `git status`, npm/tsc/eslint, and other commands use generic head/tail.
+- **ANSI-colored test output is not parsed specially** — forced color such as
+  pytest `--color=yes` may conservatively fall back to generic head/tail.
 - **No stdout/stderr interleaving** — channels are stored separately; original
   cross-channel timing is lost. `--channel both` returns stdout bytes then stderr
   bytes.

@@ -2,8 +2,9 @@ use std::path::PathBuf;
 use std::process;
 
 use rawref_lib::{
+    argv,
     commands::{get, grep, info, purge, tail},
-    condenser,
+    display::{self, context::CommandContext, registry::Registry},
     error::RawrefError,
     runner,
     stash::{Channel, SaveArgs, Stash, DEFAULT_TTL_SECS},
@@ -122,13 +123,32 @@ fn handle_run(command: &str, args: &[String]) -> i32 {
     let stdout = std::io::stdout();
     let stderr = std::io::stderr();
 
+    // Read RAWREF_REDUCERS env var: only the exact value "0" disables specialised reducers.
+    // Generic head/tail condensing always runs regardless of this flag.
+    let reducers_enabled = std::env::var("RAWREF_REDUCERS").ok().as_deref() != Some("0");
+    let registry = Registry::default_registry();
+
     match &stash_result {
         Some((ref_id, expires_at)) => {
-            let stdout_res = condenser::condense(&captured.stdout, ref_id, expires_at);
-            let stderr_res = condenser::condense(&captured.stderr, ref_id, expires_at);
+            let cmd_ctx = CommandContext {
+                command: command.to_string(),
+                args: args.to_vec(),
+                normalized: argv::normalize(command, args),
+                exit_code: captured.exit_code,
+                cwd: captured.cwd.clone(),
+            };
+            let (stdout_out, stderr_out) = display::render_passthrough(
+                &captured.stdout,
+                &captured.stderr,
+                &cmd_ctx,
+                ref_id,
+                expires_at,
+                &registry,
+                reducers_enabled,
+            );
             let mut out = stdout.lock();
             let mut err = stderr.lock();
-            write_passthrough_output(&mut out, &mut err, &stdout_res.display, &stderr_res.display);
+            write_passthrough_output(&mut out, &mut err, &stdout_out.display, &stderr_out.display);
         }
         None => {
             let mut out = stdout.lock();

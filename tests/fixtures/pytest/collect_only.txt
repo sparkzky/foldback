@@ -1,0 +1,16 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.0, pytest-7.4.0, pluggy-1.3.0
+rootdir: /home/user/project, configfile: pytest.ini
+plugins: anyio-3.7.1, cov-4.1.0, mock-3.12.0
+collected 8 items
+
+<Module tests/test_arithmetic.py>
+  <Function test_add_integers_001>
+  <Function test_add_floats_002>
+  <Function test_sub_positive_003>
+  <Function test_mul_basic_004>
+<Module tests/test_strings.py>
+  <Function test_lower_005>
+  <Function test_upper_006>
+  <Function test_strip_007>
+  <Function test_join_008>

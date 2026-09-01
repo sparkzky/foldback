@@ -1,0 +1,4 @@
+some random output
+that is not valid cargo test format at all
+GARBLED DATA HERE but no test result line
+more lines that do not match anything

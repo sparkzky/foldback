@@ -1,0 +1,15 @@
+Building project with custom test runner...
+Compiling source files...
+  src/main.c -> obj/main.o
+  src/utils.c -> obj/utils.o
+Linking...
+
+Running test suite:
+  [PASS] test_initialization
+  [PASS] test_basic_operations
+  [FAIL] test_edge_case_001: expected 42 but got 43
+  [PASS] test_cleanup
+
+Summary: 3/4 tests passed
+Build artifacts stored in build/
+See build/test_report.xml for details

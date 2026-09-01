@@ -1,0 +1,19 @@
+running 5 tests
+test tests::compute_sum ... ok
+test tests::compute_diff ... ok
+test tests::the_failure ... FAILED
+test tests::validate_input ... ok
+test tests::edge_case_zero ... ok
+
+failures:
+
+---- tests::the_failure stdout ----
+thread 'tests::the_failure' panicked at 'assertion `left == right` failed
+  left: 2
+ right: 3', src/lib.rs:42:9
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+failures:
+    tests::the_failure
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s

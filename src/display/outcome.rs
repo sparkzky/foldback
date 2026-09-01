@@ -36,7 +36,7 @@ pub enum ReductionKind {
 /// End-to-end recoverability of the raw output.
 ///
 /// `Retrievable` means the full raw bytes are stored in Stash and reachable
-/// via `rawref output get`.  It does **not** imply the inline display is lossless.
+/// via `foldback output get`.  It does **not** imply the inline display is lossless.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Recoverability {
     Retrievable,
@@ -45,7 +45,7 @@ pub enum Recoverability {
 /// Why a reducer (or the whole pipeline) chose not to apply specialised reduction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SkipReason {
-    /// `RAWREF_REDUCERS=0` — specialised reducers disabled at runtime.
+    /// `FOLDBACK_REDUCERS=0` — specialised reducers disabled at runtime.
     Disabled,
     /// No registered reducer matches this `NormalizedCommand`.
     NoMatch,

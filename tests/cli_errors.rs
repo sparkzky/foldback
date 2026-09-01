@@ -1,4 +1,4 @@
-//! Black-box tests for `rawref output` management command error paths.
+//! Black-box tests for `foldback output` management command error paths.
 //!
 //! Covers dispatch-level errors (missing/unknown subcommand, purge flags) and
 //! subcommand argument/lookup failures with stable exit-code semantics.
@@ -10,12 +10,12 @@ use tempfile::TempDir;
 const NOT_FOUND_REF: &str = "aabbccddeeff00112233445566778899";
 
 fn cmd(tmp: &TempDir) -> Command {
-    let mut c = Command::cargo_bin("rawref").unwrap();
-    c.env("RAWREF_DATA_DIR", tmp.path());
+    let mut c = Command::cargo_bin("foldback").unwrap();
+    c.env("FOLDBACK_DATA_DIR", tmp.path());
     c
 }
 
-fn rawref_with(tmp: &TempDir, args: &[&str]) -> assert_cmd::assert::Assert {
+fn foldback_with(tmp: &TempDir, args: &[&str]) -> assert_cmd::assert::Assert {
     cmd(tmp).args(args).assert()
 }
 
@@ -52,7 +52,7 @@ fn extract_ref_id(s: &str) -> Option<String> {
 #[test]
 fn e01_output_missing_subcommand() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["output"])
+    foldback_with(&tmp, &["output"])
         .failure()
         .code(2)
         .stderr(predicates::str::contains("missing subcommand"))
@@ -62,7 +62,7 @@ fn e01_output_missing_subcommand() {
 #[test]
 fn e02_output_unknown_subcommand() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["output", "nosuch"])
+    foldback_with(&tmp, &["output", "nosuch"])
         .failure()
         .code(2)
         .stderr(predicates::str::contains("unknown subcommand"));
@@ -71,7 +71,7 @@ fn e02_output_unknown_subcommand() {
 #[test]
 fn e03_purge_missing_expired_flag() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["output", "purge"])
+    foldback_with(&tmp, &["output", "purge"])
         .failure()
         .code(2)
         .stderr(predicates::str::contains("--expired"));
@@ -82,7 +82,7 @@ fn e03_purge_missing_expired_flag() {
 #[test]
 fn e04_get_bad_channel() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["output", "get", NOT_FOUND_REF, "--channel", "bad"])
+    foldback_with(&tmp, &["output", "get", NOT_FOUND_REF, "--channel", "bad"])
         .failure()
         .code(2)
         .stderr(predicates::str::contains("unknown channel"));
@@ -91,7 +91,7 @@ fn e04_get_bad_channel() {
 #[test]
 fn e05_get_missing_offset_value() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["output", "get", NOT_FOUND_REF, "--offset"])
+    foldback_with(&tmp, &["output", "get", NOT_FOUND_REF, "--offset"])
         .failure()
         .code(2)
         .stderr(predicates::str::contains("--offset"))
@@ -101,7 +101,7 @@ fn e05_get_missing_offset_value() {
 #[test]
 fn e06_get_missing_limit_value() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["output", "get", NOT_FOUND_REF, "--limit"])
+    foldback_with(&tmp, &["output", "get", NOT_FOUND_REF, "--limit"])
         .failure()
         .code(2)
         .stderr(predicates::str::contains("--limit"))
@@ -113,7 +113,7 @@ fn e06_get_missing_limit_value() {
 #[test]
 fn e07_not_found_ref_get() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["output", "get", NOT_FOUND_REF])
+    foldback_with(&tmp, &["output", "get", NOT_FOUND_REF])
         .failure()
         .code(1)
         .stderr(predicates::str::contains("not found"));
@@ -122,7 +122,7 @@ fn e07_not_found_ref_get() {
 #[test]
 fn e08_not_found_ref_tail() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["output", "tail", NOT_FOUND_REF])
+    foldback_with(&tmp, &["output", "tail", NOT_FOUND_REF])
         .failure()
         .code(1)
         .stderr(predicates::str::contains("not found"));
@@ -131,7 +131,7 @@ fn e08_not_found_ref_tail() {
 #[test]
 fn e09_not_found_ref_grep() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["output", "grep", NOT_FOUND_REF, "pat"])
+    foldback_with(&tmp, &["output", "grep", NOT_FOUND_REF, "pat"])
         .failure()
         .code(1)
         .stderr(predicates::str::contains("not found"));
@@ -140,7 +140,7 @@ fn e09_not_found_ref_grep() {
 #[test]
 fn e10_not_found_ref_info() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["output", "info", NOT_FOUND_REF])
+    foldback_with(&tmp, &["output", "info", NOT_FOUND_REF])
         .failure()
         .code(1)
         .stderr(predicates::str::contains("not found"));
@@ -154,7 +154,7 @@ fn e11_expired_ref_get() {
     let ref_id = create_ref(&tmp);
     expire_ref(&tmp, &ref_id);
 
-    rawref_with(&tmp, &["output", "get", &ref_id])
+    foldback_with(&tmp, &["output", "get", &ref_id])
         .failure()
         .code(1)
         .stderr(predicates::str::contains("expired"));
@@ -166,7 +166,7 @@ fn e12_expired_ref_tail() {
     let ref_id = create_ref(&tmp);
     expire_ref(&tmp, &ref_id);
 
-    rawref_with(&tmp, &["output", "tail", &ref_id])
+    foldback_with(&tmp, &["output", "tail", &ref_id])
         .failure()
         .code(1)
         .stderr(predicates::str::contains("expired"));
@@ -178,7 +178,7 @@ fn e13_expired_ref_grep() {
     let ref_id = create_ref(&tmp);
     expire_ref(&tmp, &ref_id);
 
-    rawref_with(&tmp, &["output", "grep", &ref_id, "1"])
+    foldback_with(&tmp, &["output", "grep", &ref_id, "1"])
         .failure()
         .code(1)
         .stderr(predicates::str::contains("expired"));
@@ -190,20 +190,20 @@ fn e14_expired_ref_info() {
     let ref_id = create_ref(&tmp);
     expire_ref(&tmp, &ref_id);
 
-    rawref_with(&tmp, &["output", "info", &ref_id])
+    foldback_with(&tmp, &["output", "info", &ref_id])
         .failure()
         .code(1)
         .stderr(predicates::str::contains("expired"));
 }
 
-// ── data_dir: no /tmp fallback when HOME/XDG/RAWREF_DATA_DIR all absent ──────
+// ── data_dir: no /tmp fallback when HOME/XDG/FOLDBACK_DATA_DIR all absent ────
 
-/// Build a Command with RAWREF_DATA_DIR, XDG_DATA_HOME, and HOME all removed.
-/// rawref must not silently fall back to /tmp for the data directory.
-fn rawref_no_data_dir(args: &[&str]) -> assert_cmd::assert::Assert {
-    Command::cargo_bin("rawref")
+/// Build a Command with FOLDBACK_DATA_DIR, XDG_DATA_HOME, and HOME all removed.
+/// foldback must not silently fall back to /tmp for the data directory.
+fn foldback_no_data_dir(args: &[&str]) -> assert_cmd::assert::Assert {
+    Command::cargo_bin("foldback")
         .unwrap()
-        .env_remove("RAWREF_DATA_DIR")
+        .env_remove("FOLDBACK_DATA_DIR")
         .env_remove("XDG_DATA_HOME")
         .env_remove("HOME")
         .args(args)
@@ -213,18 +213,19 @@ fn rawref_no_data_dir(args: &[&str]) -> assert_cmd::assert::Assert {
 #[test]
 fn e15_no_data_dir_management_exits_3() {
     // When no env-var provides a data directory, management commands must exit 3.
-    rawref_no_data_dir(&["output", "info", NOT_FOUND_REF])
+    foldback_no_data_dir(&["output", "info", NOT_FOUND_REF])
         .failure()
         .code(3)
         .stderr(
-            predicates::str::contains("data dir").or(predicates::str::contains("RAWREF_DATA_DIR")),
+            predicates::str::contains("data dir")
+                .or(predicates::str::contains("FOLDBACK_DATA_DIR")),
         );
 }
 
 #[test]
 fn e16_no_data_dir_passthrough_exits_child_code() {
     // Passthrough must be fail-open: stash is skipped, child exit code is preserved.
-    rawref_no_data_dir(&["sh", "-c", "exit 7"])
+    foldback_no_data_dir(&["sh", "-c", "exit 7"])
         .failure()
         .code(7);
 }
@@ -234,7 +235,7 @@ fn e16_no_data_dir_passthrough_exits_child_code() {
 #[test]
 fn e17_tail_rejects_channel_both() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(
+    foldback_with(
         &tmp,
         &["output", "tail", NOT_FOUND_REF, "--channel", "both"],
     )

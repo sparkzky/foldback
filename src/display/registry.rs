@@ -16,7 +16,7 @@ pub trait Reducer: Send + Sync {
     /// Attempt to reduce `input`.
     ///
     /// Returns a `ReduceOutcome` whose `display` contains the reduced content
-    /// **without** the rawref marker (the pipeline appends the marker after
+    /// **without** the foldback marker (the pipeline appends the marker after
     /// checking never-worse).
     fn reduce(&self, input: &[u8], ctx: &ChannelContext) -> ReduceOutcome;
 }

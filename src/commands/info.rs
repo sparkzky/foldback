@@ -1,8 +1,8 @@
-use crate::error::RawrefError;
+use crate::error::FoldbackError;
 use crate::stash::Stash;
 use chrono::{TimeZone, Utc};
 
-pub fn run(stash: &Stash, ref_id: &str, out: &mut dyn std::io::Write) -> Result<(), RawrefError> {
+pub fn run(stash: &Stash, ref_id: &str, out: &mut dyn std::io::Write) -> Result<(), FoldbackError> {
     let meta = stash.meta(ref_id)?;
 
     let created = Utc

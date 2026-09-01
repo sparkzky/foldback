@@ -263,7 +263,7 @@ mod tests {
         assert_eq!(new_out.display, data, "must passthrough unchanged");
     }
 
-    // ── RAWREF_REDUCERS=0 / reducers_enabled=false ────────────────────────────
+    // ── FOLDBACK_REDUCERS=0 / reducers_enabled=false ──────────────────────────
 
     /// When `reducers_enabled=false`, the registry must not be queried.
     #[test]
@@ -297,7 +297,7 @@ mod tests {
 
         // reducers_enabled=false → PanicReducer must NOT be called
         let out = render_channel(&data, &ctx, &registry, false);
-        // Generic condenser is still applied (RAWREF_REDUCERS=0 only skips specialized)
+        // Generic condenser is still applied (FOLDBACK_REDUCERS=0 only skips specialized)
         assert_eq!(
             out.view,
             ViewKind::Generic,
@@ -306,7 +306,7 @@ mod tests {
         let display_str = String::from_utf8_lossy(&out.display);
         assert!(
             !display_str.contains("view="),
-            "opt-out must not produce view= field"
+            "FOLDBACK_REDUCERS=0 opt-out must not produce view= field"
         );
     }
 

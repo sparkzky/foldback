@@ -1,4 +1,4 @@
-use crate::error::RawrefError;
+use crate::error::FoldbackError;
 use crate::stash::{Channel, Stash};
 
 pub struct TailArgs {
@@ -11,8 +11,8 @@ pub fn run(
     stash: &Stash,
     args: &TailArgs,
     out: &mut dyn std::io::Write,
-) -> Result<(), RawrefError> {
+) -> Result<(), FoldbackError> {
     let data = stash.tail_lines(&args.ref_id, args.channel, args.lines)?;
-    out.write_all(&data).map_err(RawrefError::Io)?;
+    out.write_all(&data).map_err(FoldbackError::Io)?;
     Ok(())
 }

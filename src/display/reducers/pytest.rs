@@ -6,7 +6,7 @@
 /// preamble) is discarded.
 ///
 /// **Pure function** — no IO, no spawn, no exit-code mutation.
-/// The pipeline (display/mod.rs) appends the rawref marker after checking
+/// The pipeline (display/mod.rs) appends the foldback marker after checking
 /// never-worse; the candidate body returned here must NOT contain a marker.
 use crate::argv::NormalizedCommand;
 use crate::display::context::ChannelContext;

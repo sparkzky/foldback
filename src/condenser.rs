@@ -63,7 +63,7 @@ fn build_condensed(data: &[u8], ref_id: &str, expires_at: &DateTime<Utc>) -> Vec
     let omitted = total_lines.saturating_sub(head_count + tail_count);
 
     let marker = format!(
-        "[rawref ref={ref_id} raw={raw_bytes}b lines={total_lines} omitted={omitted} expires={}]\n",
+        "[foldback ref={ref_id} raw={raw_bytes}b lines={total_lines} omitted={omitted} expires={}]\n",
         expires_at.format("%Y-%m-%dT%H:%M:%SZ")
     );
 
@@ -153,7 +153,7 @@ mod tests {
         let res = condense(&data, REF_ID, &expires());
         assert!(res.condensed);
         assert!(res.display.len() < data.len());
-        assert!(res.display.windows(9).any(|w| w == b"[rawref r"));
+        assert!(res.display.windows(9).any(|w| w == b"[foldback"));
     }
 
     #[test]
@@ -254,7 +254,7 @@ mod tests {
             .map(|l| l.len() + 1)
             .sum();
         let marker_len = format!(
-            "[rawref ref={REF_ID} raw={}b lines={total} omitted=0 expires={}]\n",
+            "[foldback ref={REF_ID} raw={}b lines={total} omitted=0 expires={}]\n",
             data.len(),
             expires().format("%Y-%m-%dT%H:%M:%SZ")
         )

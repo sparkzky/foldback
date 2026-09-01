@@ -1,4 +1,4 @@
-use crate::error::RawrefError;
+use crate::error::FoldbackError;
 use chrono::{DateTime, Utc};
 use rand::Rng;
 use rusqlite::{params, Connection};
@@ -50,19 +50,19 @@ pub enum Channel {
 }
 
 impl std::str::FromStr for Channel {
-    type Err = RawrefError;
+    type Err = FoldbackError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "stdout" => Ok(Channel::Stdout),
             "stderr" => Ok(Channel::Stderr),
             "both" => Ok(Channel::Both),
-            _ => Err(RawrefError::BadInput(format!("unknown channel: {s}"))),
+            _ => Err(FoldbackError::BadInput(format!("unknown channel: {s}"))),
         }
     }
 }
 
 impl Stash {
-    pub fn open(data_dir: &Path) -> Result<Self, RawrefError> {
+    pub fn open(data_dir: &Path) -> Result<Self, FoldbackError> {
         fs::create_dir_all(data_dir)?;
         set_mode(data_dir, 0o700)?;
 
@@ -99,7 +99,7 @@ impl Stash {
     }
 
     /// Save stdout + stderr blobs and record metadata. Returns the new ref_id.
-    pub fn save(&self, a: SaveArgs<'_>) -> Result<(String, DateTime<Utc>), RawrefError> {
+    pub fn save(&self, a: SaveArgs<'_>) -> Result<(String, DateTime<Utc>), FoldbackError> {
         let ref_id = gen_ref_id();
         let now = Utc::now();
         let expires_at = now + chrono::Duration::seconds(a.ttl_secs);
@@ -147,14 +147,14 @@ impl Stash {
             // attempted.
             let _ = fs::remove_file(&stdout_path);
             let _ = fs::remove_file(&stderr_path);
-            return Err(RawrefError::from(e));
+            return Err(FoldbackError::from(e));
         }
 
         Ok((ref_id, expires_at))
     }
 
     /// Fetch metadata, checking existence and expiry.
-    pub fn meta(&self, ref_id: &str) -> Result<EntryMeta, RawrefError> {
+    pub fn meta(&self, ref_id: &str) -> Result<EntryMeta, FoldbackError> {
         validate_ref_id(ref_id)?;
         let row = self.db.query_row(
             "SELECT command, args_json, cwd, created_at, expires_at, exit_code,
@@ -179,11 +179,11 @@ impl Stash {
 
         match row {
             Err(rusqlite::Error::QueryReturnedNoRows) => {
-                return Err(RawrefError::NotFound {
+                return Err(FoldbackError::NotFound {
                     ref_id: ref_id.to_string(),
                 });
             }
-            Err(e) => return Err(RawrefError::from(e)),
+            Err(e) => return Err(FoldbackError::from(e)),
             Ok(_) => {}
         }
 
@@ -202,7 +202,7 @@ impl Stash {
 
         let now_ms = Utc::now().timestamp_millis();
         if expires_at_ms < now_ms {
-            return Err(RawrefError::Expired {
+            return Err(FoldbackError::Expired {
                 ref_id: ref_id.to_string(),
             });
         }
@@ -231,7 +231,7 @@ impl Stash {
         channel: Channel,
         offset: Option<u64>,
         limit: Option<u64>,
-    ) -> Result<Vec<u8>, RawrefError> {
+    ) -> Result<Vec<u8>, FoldbackError> {
         let meta = self.meta(ref_id)?;
         let full = self.read_verified_full(ref_id, channel, &meta)?;
         Ok(apply_slice(full, offset, limit))
@@ -244,7 +244,7 @@ impl Stash {
         ref_id: &str,
         channel: Channel,
         n_lines: usize,
-    ) -> Result<Vec<u8>, RawrefError> {
+    ) -> Result<Vec<u8>, FoldbackError> {
         let meta = self.meta(ref_id)?;
         let data = self.read_verified_full(ref_id, channel, &meta)?;
         Ok(last_n_lines(&data, n_lines))
@@ -257,14 +257,14 @@ impl Stash {
         ref_id: &str,
         channel: Channel,
         pattern: &str,
-    ) -> Result<Vec<u8>, RawrefError> {
+    ) -> Result<Vec<u8>, FoldbackError> {
         let meta = self.meta(ref_id)?;
         let data = self.read_verified_full(ref_id, channel, &meta)?;
         Ok(grep_bytes(&data, pattern))
     }
 
     /// Remove expired refs (metadata + blobs). Returns count removed.
-    pub fn purge_expired(&self) -> Result<usize, RawrefError> {
+    pub fn purge_expired(&self) -> Result<usize, FoldbackError> {
         let now_ms = Utc::now().timestamp_millis();
         let expired: Vec<String> = {
             let mut stmt = self
@@ -306,7 +306,7 @@ impl Stash {
         ref_id: &str,
         channel: Channel,
         meta: &EntryMeta,
-    ) -> Result<Vec<u8>, RawrefError> {
+    ) -> Result<Vec<u8>, FoldbackError> {
         match channel {
             Channel::Both => {
                 let mut out = self.read_and_verify_blob(
@@ -351,13 +351,13 @@ impl Stash {
         channel: Channel,
         expected_size: i64,
         expected_sha: &str,
-    ) -> Result<Vec<u8>, RawrefError> {
+    ) -> Result<Vec<u8>, FoldbackError> {
         let path = self.blob_path(ref_id, channel);
         let mut f = OpenOptions::new().read(true).open(&path)?;
         let mut buf = Vec::new();
         f.read_to_end(&mut buf)?;
         if buf.len() as i64 != expected_size || sha256_hex(&buf) != expected_sha {
-            return Err(RawrefError::Corrupted {
+            return Err(FoldbackError::Corrupted {
                 ref_id: ref_id.to_string(),
                 channel: format!("{channel:?}"),
             });
@@ -378,7 +378,7 @@ fn sha256_hex(data: &[u8]) -> String {
     hex::encode(digest)
 }
 
-fn write_blob(path: &Path, data: &[u8]) -> Result<(), RawrefError> {
+fn write_blob(path: &Path, data: &[u8]) -> Result<(), FoldbackError> {
     use std::os::unix::fs::OpenOptionsExt;
     let mut f = OpenOptions::new()
         .write(true)
@@ -390,11 +390,11 @@ fn write_blob(path: &Path, data: &[u8]) -> Result<(), RawrefError> {
     Ok(())
 }
 
-fn validate_ref_id(ref_id: &str) -> Result<(), RawrefError> {
+fn validate_ref_id(ref_id: &str) -> Result<(), FoldbackError> {
     if ref_id.len() == 32 && ref_id.chars().all(|c| c.is_ascii_hexdigit()) {
         Ok(())
     } else {
-        Err(RawrefError::InvalidRef {
+        Err(FoldbackError::InvalidRef {
             input: ref_id.to_string(),
         })
     }
@@ -447,7 +447,7 @@ fn apply_slice(data: Vec<u8>, offset: Option<u64>, limit: Option<u64>) -> Vec<u8
 }
 
 /// Set Unix permissions on a file or directory.  chmod errors are NOT ignored.
-fn set_mode(path: &Path, mode: u32) -> Result<(), RawrefError> {
+fn set_mode(path: &Path, mode: u32) -> Result<(), FoldbackError> {
     use std::os::unix::fs::PermissionsExt;
     let perms = fs::Permissions::from_mode(mode);
     fs::set_permissions(path, perms)?;
@@ -554,21 +554,21 @@ mod tests {
         let (_tmp, stash) = make_stash();
         let ref_id = quick_save(&stash, b"data", b"", -1);
         let err = stash.meta(&ref_id).unwrap_err();
-        assert!(matches!(err, RawrefError::Expired { .. }));
+        assert!(matches!(err, FoldbackError::Expired { .. }));
     }
 
     #[test]
     fn test_not_found_ref() {
         let (_tmp, stash) = make_stash();
         let err = stash.meta("aabbccddeeff00112233445566778899").unwrap_err();
-        assert!(matches!(err, RawrefError::NotFound { .. }));
+        assert!(matches!(err, FoldbackError::NotFound { .. }));
     }
 
     #[test]
     fn test_invalid_ref_format() {
         let (_tmp, stash) = make_stash();
         let err = stash.meta("not-a-valid-ref").unwrap_err();
-        assert!(matches!(err, RawrefError::InvalidRef { .. }));
+        assert!(matches!(err, FoldbackError::InvalidRef { .. }));
     }
 
     #[test]
@@ -806,14 +806,14 @@ mod tests {
 
         let err = stash.meta(&ref_id).unwrap_err();
         assert!(
-            matches!(err, RawrefError::NotFound { .. }),
+            matches!(err, FoldbackError::NotFound { .. }),
             "purged ref should be NotFound, got {err:?}"
         );
         let read_err = stash
             .read_channel(&ref_id, Channel::Stdout, None, None)
             .unwrap_err();
         assert!(
-            matches!(read_err, RawrefError::NotFound { .. }),
+            matches!(read_err, FoldbackError::NotFound { .. }),
             "read after purge should be NotFound, got {read_err:?}"
         );
     }
@@ -874,7 +874,7 @@ mod tests {
             .read_channel(&ref_id, Channel::Stdout, None, None)
             .unwrap_err();
         assert!(
-            matches!(err, RawrefError::Corrupted { .. }),
+            matches!(err, FoldbackError::Corrupted { .. }),
             "expected Corrupted, got {err:?}"
         );
         assert_eq!(err.exit_code(), 3, "Corrupted must exit-code 3");
@@ -890,7 +890,7 @@ mod tests {
             .read_channel(&ref_id, Channel::Stderr, None, None)
             .unwrap_err();
         assert!(
-            matches!(err, RawrefError::Corrupted { .. }),
+            matches!(err, FoldbackError::Corrupted { .. }),
             "expected Corrupted on stderr, got {err:?}"
         );
         assert_eq!(err.exit_code(), 3);
@@ -908,7 +908,7 @@ mod tests {
             .read_channel(&ref_id, Channel::Stdout, Some(3), Some(4))
             .unwrap_err();
         assert!(
-            matches!(err, RawrefError::Corrupted { .. }),
+            matches!(err, FoldbackError::Corrupted { .. }),
             "range read on corrupted blob must return Corrupted"
         );
     }
@@ -923,7 +923,7 @@ mod tests {
             .read_channel(&ref_id, Channel::Both, None, None)
             .unwrap_err();
         assert!(
-            matches!(err, RawrefError::Corrupted { .. }),
+            matches!(err, FoldbackError::Corrupted { .. }),
             "Both channel on corrupted stdout must return Corrupted"
         );
     }
@@ -936,7 +936,7 @@ mod tests {
         fs::write(&blob, b"ZZZZZ\nZZZZZ\nZZZZZ\n").unwrap();
         let err = stash.tail_lines(&ref_id, Channel::Stdout, 2).unwrap_err();
         assert!(
-            matches!(err, RawrefError::Corrupted { .. }),
+            matches!(err, FoldbackError::Corrupted { .. }),
             "tail_lines on corrupted blob must return Corrupted"
         );
     }
@@ -951,7 +951,7 @@ mod tests {
             .grep_lines(&ref_id, Channel::Stdout, "pattern")
             .unwrap_err();
         assert!(
-            matches!(err, RawrefError::Corrupted { .. }),
+            matches!(err, FoldbackError::Corrupted { .. }),
             "grep_lines on corrupted blob must return Corrupted"
         );
     }

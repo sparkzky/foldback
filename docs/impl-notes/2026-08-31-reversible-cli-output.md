@@ -1,4 +1,4 @@
-# rawref Phase 1 实现笔记
+# foldback Phase 1 实现笔记
 
 > 日期：2026-08-31
 > 规范来源：`docs/plan.md`（冲突时 plan 为规范，本笔记只记录**实际偏离与决策**）
@@ -11,17 +11,17 @@
 ### 放弃 fork RTK，改为独立实现
 
 - **原因**：`docs/plan.md` §1 与附录 A 明确不 fork RTK、不复制源码；需自有 Stash 协议与 correctness contract。
-- **实际处理**：全新 Rust crate（`rawref` / `rawref_lib`），参考 RTK 的「前缀 CLI + 输出精简」思路与 Tokenless 的「先存 raw 再展示精简视图」，代码路径为 `runner` → `stash` → `condenser` → `commands/*`。
+- **实际处理**：全新 Rust crate（`foldback` / `foldback_lib`），参考 RTK 的「前缀 CLI + 输出精简」思路与 Tokenless 的「先存 raw 再展示精简视图」，代码路径为 `runner` → `stash` → `condenser` → `commands/*`。
 - **备选/升级**：Phase 2+ 可按命令增加专用 reducer（plan §6.3、§12），仍须 raw-first，不引入 RTK 源码依赖。
 
-### CLI 命名：`rev retrieve` → `rawref output get`
+### CLI 命名：`rev retrieve` → `foldback output get`
 
 - **原因**：避免与 passthrough 子命令 `run` 冲突；管理面统一在 `output` 命名空间（plan §3.1、附录 A）。
 - **实际处理**：
-  - 主路径：`rawref <cmd> [args...]` 隐式 passthrough
-  - 逃生：`rawref run -- <cmd> [args...]`
-  - 恢复：`rawref output get|tail|grep|info|purge`
-  - 保留命名空间：`output`、`run` 为 rawref 自身语义（`src/main.rs`）
+  - 主路径：`foldback <cmd> [args...]` 隐式 passthrough
+  - 逃生：`foldback run -- <cmd> [args...]`
+  - 恢复：`foldback output get|tail|grep|info|purge`
+  - 保留命名空间：`output`、`run` 为 foldback 自身语义（`src/main.rs`）
 - **备选/升级**：README 与 `print_usage()` 已对齐；后续可加 shell 补全，不改语义。
 
 ### MVP 仅通用 head/tail reducer，无专用命令过滤器
@@ -38,14 +38,14 @@
 
 ### 读路径 SHA-256 校验（相对 `docs/design.md` §5.3 偏离）
 
-- **原因**：design 初稿将 SHA-256 标为「写入时计算、读时不校验」；代码复审要求 retrieve 路径在返回字节前校验 size + digest，tamper 须 exit 3（`RawrefError::Corrupted`）。
+- **原因**：design 初稿将 SHA-256 标为「写入时计算、读时不校验」；代码复审要求 retrieve 路径在返回字节前校验 size + digest，tamper 须 exit 3（`FoldbackError::Corrupted`）。
 - **实际处理**：`stash::read_and_verify_blob` 在 `get` / `tail` / `grep` 全路径读完整 blob 后比对 `stdout_size`/`stderr_size` 与 metadata SHA-256；`get --channel both` 两通道各自 verify 后再拼接。
 - **备选/升级**：超大 blob 可改为流式 hash + 分段读；MVP 仍全量读入（见边界情况 RAM 条目）。
 
 ### `data_dir` 无 `/tmp` fallback（相对 design §5.1 初稿偏离）
 
 - **原因**：静默 fallback `/tmp` 在多用户/容器环境有数据隔离与权限风险；复审要求显式失败。
-- **实际处理**：`main.rs::data_dir()` 优先级 `RAWREF_DATA_DIR` → `XDG_DATA_HOME/rawref` → `$HOME/.local/share/rawref`；三者皆不可用则返回 `Err`，管理命令 exit 3、passthrough fail-open 仍透传子进程 exit code（`cli_errors` e15/e16）。
+- **实际处理**：`main.rs::data_dir()` 优先级 `FOLDBACK_DATA_DIR` → `XDG_DATA_HOME/foldback` → `$HOME/.local/share/foldback`；三者皆不可用则返回 `Err`，管理命令 exit 3、passthrough fail-open 仍透传子进程 exit code（`cli_errors` e15/e16）。
 - **备选/升级**：文档已更新 README；不设隐式 fallback。
 
 ---
@@ -70,11 +70,11 @@
 - **实际处理**：`build_condensed` 在 `tail_count > 0` 时显式 append `lines[tail_start..]`；`test_byte_threshold_with_few_lines_preserves_head_and_tail` 锁定 head 0–19 与 tail 20–24 均保留；因无压缩收益仍 `condensed = false` passthrough。
 - **备选/升级**：无；属 correctness 修复。
 
-### `RAWREF_DATA_DIR` 隔离，无 session attribution
+### `FOLDBACK_DATA_DIR` 隔离，无 session attribution
 
-- **原因**：Tokenless 在 agent 框架内做 session/tool 归属；rawref 为独立 CLI，plan §8 用目录隔离替代跨 session 探测防护。
-- **实际处理**：默认 `~/.local/share/rawref`（或 `XDG_DATA_HOME`）；集成测试与并发测试均 `env("RAWREF_DATA_DIR", tmp.path())`。ref_id 为 128-bit 随机 hex（`gen_ref_id`），**非**内容寻址。
-- **备选/升级**：多项目可设不同 `RAWREF_DATA_DIR`；Phase 2 可选 wrapper 脚本，仍非透明 hook。
+- **原因**：Tokenless 在 agent 框架内做 session/tool 归属；foldback 为独立 CLI，plan §8 用目录隔离替代跨 session 探测防护。
+- **实际处理**：默认 `~/.local/share/foldback`（或 `XDG_DATA_HOME`）；集成测试与并发测试均 `env("FOLDBACK_DATA_DIR", tmp.path())`。ref_id 为 128-bit 随机 hex（`gen_ref_id`），**非**内容寻址。
+- **备选/升级**：多项目可设不同 `FOLDBACK_DATA_DIR`；Phase 2 可选 wrapper 脚本，仍非透明 hook。
 
 ### 二进制 / 非法 UTF-8
 
@@ -85,14 +85,14 @@
 ### Stash 失败 fail-open；save 普通错误 best-effort rollback
 
 - **原因**：plan §2 #2、G5；子进程已成功时不得因存储失败改变 exit code。
-- **实际处理**：`handle_run` 中 `Stash::open/save` 失败 → stderr 告警 `[rawref] stash ... (fail-open)` → 原样写 raw stdout/stderr → 仍返回 `captured.exit_code`（t07 只读目录验证）。`save` 在 stderr blob 写失败时删除已写 stdout blob；DB INSERT 失败时删除两 blob（`test_db_insert_failure_cleans_up_blobs`）。
+- **实际处理**：`handle_run` 中 `Stash::open/save` 失败 → stderr 告警 `[foldback] stash ... (fail-open)` → 原样写 raw stdout/stderr → 仍返回 `captured.exit_code`（t07 只读目录验证）。`save` 在 stderr blob 写失败时删除已写 stdout blob；DB INSERT 失败时删除两 blob（`test_db_insert_failure_cleans_up_blobs`）。
 - **残余**：进程在 blob 写完后、rollback 前 **crash/kill** 仍可能留下 orphan blob；无跨 FS+SQLite 两阶段提交（见开放问题）。
 - **备选/升级**：可选 `--strict-stash` 类 flag（plan 未要求，见开放问题）。
 
 ### passthrough 终端 write 失败可观测
 
 - **原因**：pipe 捕获后写回调用方 stdout/stderr 若 BrokenPipe 等，原先静默吞错。
-- **实际处理**：`write_passthrough_output` 在 write 失败时向对侧通道打印 `[rawref] warning: stdout|stderr write failed: …`；不 panic、不改变 exit code（`main.rs` 单测 4 项）。
+- **实际处理**：`write_passthrough_output` 在 write 失败时向对侧通道打印 `[foldback] warning: stdout|stderr write failed: …`；不 panic、不改变 exit code（`main.rs` 单测 4 项）。
 - **备选/升级**：无。
 
 ### `tail` 拒绝 `--channel both`
@@ -120,7 +120,7 @@
 
 - **原因**：plan §1.2 非目标；降低 MVP 面与平台矩阵。
 - **实际处理**：
-  - **无 hook**：agent 须显式前缀 `rawref`（README、plan §1.2）
+  - **无 hook**：agent 须显式前缀 `foldback`（README、plan §1.2）
   - **无 TTY**：`Command::output()` pipe 捕获；`print_usage()` 与 README Limitations 已声明
   - **无 watch/server**：单次 CLI invocation，无 daemon、无文件监听
   - **无 Windows**：blob `mode(0o600)`、`cfg(unix)` signal 映射；非 Unix 编译路径未实现
@@ -141,7 +141,7 @@
 ### 管理命令 exit code 与子进程分离
 
 - **原因**：plan §7.2；避免与 passthrough 0–127+signal 混淆。
-- **实际处理**：`RawrefError::exit_code()` → NotFound/Expired=1，InvalidRef/BadInput=2，Storage/Io/Corrupted=3；passthrough 始终用子进程 code（`main.rs` 注释与 t14/t15、t05b exit 42、`tests/cli_errors.rs` 验证）。
+- **实际处理**：`FoldbackError::exit_code()` → NotFound/Expired=1，InvalidRef/BadInput=2，Storage/Io/Corrupted=3；passthrough 始终用子进程 code（`main.rs` 注释与 t14/t15、t05b exit 42、`tests/cli_errors.rs` 验证）。
 
 ### grep 为字面量子串，非 regex
 
@@ -195,7 +195,7 @@
 | `cargo test --locked` | exit 0，**92/92** 全绿 |
 | `cargo check --locked` | exit 0 |
 
-**测试分布（92 项）**：`rawref_lib` 单元 52（condenser 16 + stash 31 + runner 5）+ `rawref` binary 单测 4（`write_passthrough_*`）+ `tests/cli_errors.rs` 17 + 集成 t01–t16 共 19。全部通过 `RAWREF_DATA_DIR=<tempdir>` 隔离（集成与 CLI 错误测试）。
+**测试分布（92 项）**：`foldback_lib` 单元 52（condenser 16 + stash 31 + runner 5）+ `foldback` binary 单测 4（`write_passthrough_*`）+ `tests/cli_errors.rs` 17 + 集成 t01–t16 共 19。全部通过 `FOLDBACK_DATA_DIR=<tempdir>` 隔离（集成与 CLI 错误测试）。
 
 ### Smoke / 端到端行为
 

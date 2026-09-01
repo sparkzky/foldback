@@ -1,4 +1,4 @@
-# rawref Phase 1 实现计划
+# foldback Phase 1 实现计划
 
 > **定位**：独立 Rust CLI，参考 [RTK](https://github.com/rtk-ai/rtk) 的命令输出精简思路与 [ANOLISA Tokenless](https://github.com/alibaba/anolisa/tree/main/src/tokenless) 的可逆 Stash 协议，**不 fork RTK、不复制源码、不做透明 hook**。
 > **承诺**：底层命令只执行一次；被隐藏内容 byte-exact 可恢复；命令 exit code 透传。
@@ -12,10 +12,10 @@
 
 | # | 目标 | 验证方式 |
 |---|------|----------|
-| G1 | RTK 风格 CLI 前缀：`rawref <cmd> [args...]` 执行一次并捕获 stdout/stderr/exit code | 集成测试 t01、t05 |
+| G1 | RTK 风格 CLI 前缀：`foldback <cmd> [args...]` 执行一次并捕获 stdout/stderr/exit code | 集成测试 t01、t05 |
 | G2 | **Raw-first**：任何有损精简前，完整 raw 已写入本地 Stash | 集成测试 t03、t06 |
-| G3 | 超阈值输出返回精简视图 + `[rawref ref=…]` marker | 集成测试 t02 |
-| G4 | `rawref output get/tail/grep/info/purge` 按需恢复，检索结果**不再精简** | 集成测试 t03–t12 |
+| G3 | 超阈值输出返回精简视图 + `[foldback ref=…]` marker | 集成测试 t02 |
+| G4 | `foldback output get/tail/grep/info/purge` 按需恢复，检索结果**不再精简** | 集成测试 t03–t12 |
 | G5 | Stash 写入失败 **fail-open**：仍返回原始输出，不崩溃 | 集成测试 t07 |
 | G6 | 短输出、二进制/非法 UTF-8 原样 passthrough 或 byte-exact 恢复 | 集成测试 t01、t06 |
 | G7 | 并发 capture 不串 ref、不碰撞 blob | 集成测试 t13 |
@@ -24,7 +24,7 @@
 
 | 类别 | 说明 |
 |------|------|
-| **透明 hook** | 不做 Cursor/Claude Code 命令重写；agent 显式使用 `rawref` 前缀 |
+| **透明 hook** | 不做 Cursor/Claude Code 命令重写；agent 显式使用 `foldback` 前缀 |
 | **Windows** | 仅 Unix/macOS；blob 权限、signal exit 按 Unix 语义 |
 | **交互式 TTY** | 不分配 PTY；适合有限生命周期、非交互命令 |
 | **watch / server** | 不支持长驻进程、流式实时压缩、文件监听 |
@@ -43,7 +43,7 @@
 2. **Raw-first** — 精简逻辑读取的是内存中已捕获的 raw；Stash 写入与精简显示顺序为：**先 save raw → 再 condense → 再写终端**。Stash 失败则跳过精简 marker，原样输出 raw（fail-open）。
 3. **通道分离** — stdout、stderr 分别存储为独立 blob；metadata 记录各自 size 与 SHA-256。
 4. **Exit code 透传** — passthrough 模式 exit code = 子进程 exit code；Unix signal 映射为 `128 + signal`（与常见 shell 约定一致）。
-5. **检索 bypass** — `rawref output *` 子命令 stdout 直接写 raw 字节，**不经过 condenser**。
+5. **检索 bypass** — `foldback output *` 子命令 stdout 直接写 raw 字节，**不经过 condenser**。
 6. **Ref 不可预测** — ref_id 为 128-bit 随机 hex（32 字符）；禁止内容寻址 ref（防跨 session 探测）。
 7. **过期即失效** — `expires_at < now` 的 ref 对所有读操作返回 `Expired`（exit 1），不得静默返回部分数据。
 
@@ -54,23 +54,23 @@
 ### 3.1 命令面
 
 ```
-rawref <command> [args...]              # RTK 风格隐式 passthrough（主路径）
-rawref run -- <command> [args...]       # 显式逃生：cmd 名为 output/run 时使用
-rawref output get    <ref> [flags]      # byte-exact 恢复
-rawref output tail   <ref> [flags]      # 末 N 行
-rawref output grep   <ref> <pattern>    # 子串匹配行
-rawref output info   <ref>              # 元数据
-rawref output purge  --expired          # 清理过期 ref
+foldback <command> [args...]              # RTK 风格隐式 passthrough（主路径）
+foldback run -- <command> [args...]       # 显式逃生：cmd 名为 output/run 时使用
+foldback output get    <ref> [flags]      # byte-exact 恢复
+foldback output tail   <ref> [flags]      # 末 N 行
+foldback output grep   <ref> <pattern>    # 子串匹配行
+foldback output info   <ref>              # 元数据
+foldback output purge  --expired          # 清理过期 ref
 ```
 
-**保留命名空间**：首参数为 `output` 或 `run` 时进入 rawref 自身语义；要执行名为 `output`/`run` 的外部命令，必须使用 `rawref run -- …`。
+**保留命名空间**：首参数为 `output` 或 `run` 时进入 foldback 自身语义；要执行名为 `output`/`run` 的外部命令，必须使用 `foldback run -- …`。
 
 ### 3.2 Passthrough 行为
 
 ```
-rawref git diff
-rawref pytest -q tests/
-rawref cargo test --lib
+foldback git diff
+foldback pytest -q tests/
+foldback cargo test --lib
 ```
 
 1. 启动子进程，捕获 stdout/stderr（pipe，非 TTY）。
@@ -93,7 +93,7 @@ rawref cargo test --lib
 当 condense 生效时，display 输出中插入一行：
 
 ```text
-[rawref ref=<32-hex> raw=<bytes>b lines=<n> omitted=<m> expires=<ISO8601Z>]
+[foldback ref=<32-hex> raw=<bytes>b lines=<n> omitted=<m> expires=<ISO8601Z>]
 ```
 
 - 短输出（未超阈值）或 condense 不省空间：**无 marker**，display = raw。
@@ -103,7 +103,7 @@ rawref cargo test --lib
 
 | 变量 | 默认 | 用途 |
 |------|------|------|
-| `RAWREF_DATA_DIR` | `$XDG_DATA_HOME/rawref` 或 `~/.local/share/rawref` | Stash 根目录 |
+| `FOLDBACK_DATA_DIR` | `$XDG_DATA_HOME/foldback` 或 `~/.local/share/foldback` | Stash 根目录 |
 | `XDG_DATA_HOME` | `~/.local/share` | 标准 XDG 路径 |
 
 ---
@@ -113,7 +113,7 @@ rawref cargo test --lib
 ### 4.1 目录布局
 
 ```
-$RAWREF_DATA_DIR/
+$FOLDBACK_DATA_DIR/
 ├── meta.db          # SQLite WAL
 └── blobs/
     ├── <ref_id>.stdout
@@ -157,7 +157,7 @@ CondenseResult { display: Vec<u8>, condensed: bool }
 ## 5. Raw-first 数据流
 
 ```
-Agent 调用: rawref <cmd> [args]
+Agent 调用: foldback <cmd> [args]
         │
         ▼
 ┌───────────────────┐
@@ -176,7 +176,7 @@ Agent 调用: rawref <cmd> [args]
 │ condense(stderr)  │──► 终端 stderr
 └───────────────────┘
 
-Agent 按需: rawref output get <ref> [--offset N] [--limit N]
+Agent 按需: foldback output get <ref> [--offset N] [--limit N]
         │
         ▼
 ┌───────────────────┐
@@ -186,9 +186,9 @@ Agent 按需: rawref output get <ref> [--offset N] [--limit N]
       stdout (raw bytes)
 ```
 
-**与 RTK 的关键差异**：RTK 默认仅在失败路径 tee，成功过滤通常不可逆；rawref **所有**进入 condense 路径的输出都必须先入库。
+**与 RTK 的关键差异**：RTK 默认仅在失败路径 tee，成功过滤通常不可逆；foldback **所有**进入 condense 路径的输出都必须先入库。
 
-**与 Tokenless 的关键差异**：Tokenless 在 agent 框架 `after_tool_call` 钩子里替换 model-visible 副本；rawref 是独立 CLI，agent 通过前缀调用，retrieve 通过 `output get` 而非动态发布的 tool。
+**与 Tokenless 的关键差异**：Tokenless 在 agent 框架 `after_tool_call` 钩子里替换 model-visible 副本；foldback 是独立 CLI，agent 通过前缀调用，retrieve 通过 `output get` 而非动态发布的 tool。
 
 ---
 
@@ -216,7 +216,7 @@ Agent 按需: rawref output get <ref> [--offset N] [--limit N]
 
 ## 7. 错误与 Exit Code 语义
 
-### 7.1 Passthrough 模式（`rawref <cmd>` / `rawref run -- …`）
+### 7.1 Passthrough 模式（`foldback <cmd>` / `foldback run -- …`）
 
 | 情况 | Exit code |
 |------|-----------|
@@ -225,7 +225,7 @@ Agent 按需: rawref output get <ref> [--offset N] [--limit N]
 | 命令不存在 / 无法 exec | 127 |
 | Stash 失败 | **仍用子进程 exit code**（fail-open，错误打 stderr） |
 
-### 7.2 管理命令（`rawref output …`）
+### 7.2 管理命令（`foldback output …`）
 
 | Code | 含义 | 典型场景 |
 |------|------|----------|
@@ -257,7 +257,7 @@ Io(Error)
 | Blob 权限 | `0600` | owner read/write only（`OpenOptionsExt::mode`） |
 | DB | SQLite WAL, synchronous=NORMAL | 单进程 CLI 足够；并发 capture 依赖 OS + SQLite 锁 |
 | 清理 | `purge --expired` 手动；无后台 daemon | 删除过期行 + 对应 blob 文件 |
-| 隔离 | `RAWREF_DATA_DIR` per project/test | 集成测试必须使用临时目录 |
+| 隔离 | `FOLDBACK_DATA_DIR` per project/test | 集成测试必须使用临时目录 |
 | 容量上限 | MVP 无硬上限 | **风险**：超大输出占满磁盘；文档声明适用 bounded 命令 |
 
 ---
@@ -278,7 +278,7 @@ Io(Error)
 
 - [x] `runner::capture` — pipe stdout/stderr，记录 cwd
 - [x] `main` 隐式 passthrough，无 stash 时原样输出
-- **验证**：`rawref echo hello`、`rawref true/false/exit 42` ✅
+- **验证**：`foldback echo hello`、`foldback true/false/exit 42` ✅
 
 ### Wave 2 — Stash 核心（RED: stash 单元测试）✅
 
@@ -302,7 +302,7 @@ Io(Error)
 ### Wave 5 — 韧性（RED: t06, t07, t11, t13–t16）✅
 
 - [x] 二进制 stdout、stash fail-open、过期 purge
-- [x] 并发 ref 隔离、`rawref run --` 逃生
+- [x] 并发 ref 隔离、`foldback run --` 逃生
 - [x] invalid/not-found ref exit code
 - **验证**：完整 `cargo test`；`cargo clippy -D warnings` ✅
 
@@ -320,7 +320,7 @@ Io(Error)
 |---------|------|----------|
 | t01 | 短 stdout passthrough | §6.1 未超阈值 |
 | t01b | 短 stderr passthrough | §3.2 通道分离 |
-| t02 | 长输出含 `[rawref ref=` | §3.4 marker |
+| t02 | 长输出含 `[foldback ref=` | §3.4 marker |
 | t03 | get 恢复 byte-exact | §2 raw-first + §3.3 get |
 | t04 | stdout/stderr channel 隔离 | §2 #3 |
 | t05 | exit code 0/42/1 透传 | §7.1 |
@@ -344,7 +344,7 @@ Io(Error)
 | `cargo clippy --all-targets -- -D warnings` | ✅ |
 | `cargo test` | ✅ **92/92**（lib 单元 52 + bin 单元 4 + `tests/cli_errors.rs` 17 + 集成 t01–t16 共 19） |
 | `cargo build --release` | ✅ |
-| Smoke（临时 `RAWREF_DATA_DIR`）：`seq 1 200` → 提取 ref → `output get` 字节与 `output info` SHA-256 一致 | ✅（README「Quick start (smoke test)」；t03 断言 byte-exact 内容） |
+| Smoke（临时 `FOLDBACK_DATA_DIR`）：`seq 1 200` → 提取 ref → `output get` 字节与 `output info` SHA-256 一致 | ✅（README「Quick start (smoke test)」；t03 断言 byte-exact 内容） |
 
 **已知缺口（不阻塞 MVP 交付）**：signal exit `128+sig` 无端到端集成测（`runner` 单元已覆盖）；并发 SQLite 锁冲突 → CLI exit 3 无集成测；**无 CI 配置**（须本地或后续补 workflow）。
 
@@ -373,14 +373,14 @@ Io(Error)
 4. **Shell 补全与安装脚本** — `cargo install`、Homebrew formula。
 5. **可选轻量 hook** — 仅文档化 opt-in 别名，非 MVP。
 6. **Windows 移植** — 权限模型、进程 API、exit code 语义。
-7. **Framework adapter** — MCP tool / Python SDK 包装 `rawref output get`。
+7. **Framework adapter** — MCP tool / Python SDK 包装 `foldback output get`。
 8. **Metrics** — token 节省估算、retrieve 命中率、悬空 ref 率。
 
 ---
 
 ## 附录 A：与 Phase 0 原 plan 的差异说明
 
-对话中 Phase 1 曾使用 `rev retrieve` 命名；**现以 `rawref output get` 为准**（避免与 `run` 子命令冲突、对齐 `output` 管理命名空间）。语义等价：retrieve = get，inspect 能力拆为 tail/grep/info。
+对话中 Phase 1 曾使用 `rev retrieve` 命名；**现以 `foldback output get` 为准**（避免与 `run` 子命令冲突、对齐 `output` 管理命名空间）。语义等价：retrieve = get，inspect 能力拆为 tail/grep/info。
 
 Fork RTK 方案已明确**放弃**；改为独立实现 + 参考设计。工作量预估（1 人）：核心可逆 CLI 2–3 周；含 6–10 类专用 reducer 的可用 MVP 4–6 周。
 

@@ -1,6 +1,6 @@
-# rawref — 架构与设计
+# foldback — 架构与设计
 
-> **读者**：需要修改或扩展 rawref 的维护者。
+> **读者**：需要修改或扩展 foldback 的维护者。
 > **权威来源**：本仓库 `src/` 与 `tests/`；`docs/plan.md` 为 Phase 1 规格，**实现与规格冲突时以代码为准**，偏离在 §12 列出。
 > **验收基线**（2026-08-31）：`cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`、`cargo build --release` exit 0；`cargo test --locked` **92/92**；stdout/stderr SHA-256 byte-exact smoke、stderr exit 42、info/tail/grep 集成路径均通过。
 
@@ -8,12 +8,12 @@
 
 ## 1. 系统概览
 
-rawref 是一个独立 Rust CLI，在 agent 调用外部命令时：
+foldback 是一个独立 Rust CLI，在 agent 调用外部命令时：
 
 1. **只执行一次**底层命令，捕获 stdout / stderr / exit code；
 2. **先**把完整 raw 写入本地 Stash（SQLite 元数据 + 文件 blob）；
-3. **再**按阈值决定是否把终端可见输出精简，并插入 `[rawref ref=…]` marker；
-4. 通过 `rawref output get|tail|grep|info|purge` **按需恢复**，恢复路径不重跑原命令、不再精简。
+3. **再**按阈值决定是否把终端可见输出精简，并插入 `[foldback ref=…]` marker；
+4. 通过 `foldback output get|tail|grep|info|purge` **按需恢复**，恢复路径不重跑原命令、不再精简。
 
 非交互、无 TTY、无 hook、无后台进程。适用有界生命周期的命令（测试、构建、查询），不适用流式 watch 或交互式 REPL。
 
@@ -22,9 +22,9 @@ rawref 是一个独立 Rust CLI，在 agent 调用外部命令时：
 ## 2. 模块边界
 
 ```
-rawref (binary, src/main.rs)
-├── CLI 分发、环境路径、passthrough 编排、RAWREF_REDUCERS env 读取
-└── rawref_lib (src/lib.rs)
+foldback (binary, src/main.rs)
+├── CLI 分发、环境路径、passthrough 编排、FOLDBACK_REDUCERS env 读取
+└── foldback_lib (src/lib.rs)
     ├── runner           — 子进程 capture，exit code 映射
     ├── stash            — SQLite + blob 读写、ref 生命周期
     ├── argv             — 命令规范化 (NormalizedCommand)
@@ -38,7 +38,7 @@ rawref (binary, src/main.rs)
     │       ├── pytest   — pytest 输出精简
     │       └── cargo_test — cargo test 输出精简
     ├── condenser        — Phase 1 legacy（现通过 display::generic 调用）
-    ├── error            — RawrefError 与 exit code 映射
+    ├── error            — FoldbackError 与 exit code 映射
     └── commands/        — output 子命令薄封装
         ├── get          — byte-exact 读出
         ├── tail         — 末 N 行
@@ -49,7 +49,7 @@ rawref (binary, src/main.rs)
 
 | 模块 | 职责 | 不应承担 |
 |------|------|----------|
-| `main.rs` | argv 解析、`handle_run` / `handle_output` 编排、`RAWREF_DATA_DIR`、`RAWREF_REDUCERS` env 读取 | 存储细节、精简算法 |
+| `main.rs` | argv 解析、`handle_run` / `handle_output` 编排、`FOLDBACK_DATA_DIR`、`FOLDBACK_REDUCERS` env 读取 | 存储细节、精简算法 |
 | `runner` | `Command::output()` 一次调用、Unix signal → `128+sig` | Stash、display |
 | `stash` | ref 生成、SHA-256 写入与读路径校验、`data_dir`/`blobs/` 0700、blob/`meta.db` 0600、TTL、expiry 校验 | 终端输出、精简 |
 | `argv` | 命令 basename + 参数解析，生成 `NormalizedCommand` | 执行、联网 |
@@ -59,7 +59,7 @@ rawref (binary, src/main.rs)
 
 **依赖方向**：`main` → `commands` / `display` / `runner` / `stash` / `argv` → `error`。`display` 与 `runner` 互不依赖；`display` 内部 `reducers/` ← `registry`。
 
-**crate 布局**：二进制入口 `src/main.rs`，库 crate 名 `rawref_lib`（`src/lib.rs`），供单元测试与逻辑复用。
+**crate 布局**：二进制入口 `src/main.rs`，库 crate 名 `foldback_lib`（`src/lib.rs`），供单元测试与逻辑复用。
 
 ---
 
@@ -74,12 +74,12 @@ argv[1] 分支:
 └── 其他      → 隐式 passthrough：argv[1..] 全部作为外部命令
 ```
 
-**保留命名空间**：首参数为 `output` 或 `run` 时进入 rawref 语义。要执行名为 `output` / `run` 的外部命令，必须用 `rawref run -- output …`。
+**保留命名空间**：首参数为 `output` 或 `run` 时进入 foldback 语义。要执行名为 `output` / `run` 的外部命令，必须用 `foldback run -- output …`。
 
 | 模式 | exit code 命名空间 |
 |------|-------------------|
 | Passthrough（隐式或 `run --`） | 子进程 code（0–127 或 128+signal）；exec 失败 → 127 |
-| `rawref output …` | rawref 自有 0–3（§9） |
+| `foldback output …` | foldback 自有 0–3（§9） |
 
 无参数时打印 usage 到 stderr，exit 2。
 
@@ -104,7 +104,7 @@ handle_run(command, args)
 │       └─ cmd_ctx = CommandContext { command, args, normalized: argv::normalize(...), ... }
 │
 ├─5─ 编排 display pipeline（raw-first 后调用）
-│       ├─ reducers_enabled = env("RAWREF_REDUCERS") != "0"
+│       ├─ reducers_enabled = env("FOLDBACK_REDUCERS") != "0"
 │       ├─ stdout_out = display::render_channel(stdout_raw, ctx_stdout, registry, reducers_enabled)
 │       │              ├─ 三级尝试：
 │       │              │  1. 若启用 & 超阈值 → 专用 reducer (matched by normalized command)
@@ -138,7 +138,7 @@ handle_run(command, args)
 
 - **Capture**：pipe 模式，非 TTY；两通道全量读入 `Vec<u8>`（当前无 spill）。
 - **Passthrough 写终端**：stdout 内容写进程 stdout，stderr 写进程 stderr；**不保证**跨通道交错时序（与子进程运行时序不同，capture 已分离）。
-- **写失败**：`write_passthrough_output` 在 stdout/stderr 写入失败时向**对侧**流打印 `[rawref] warning: … write failed: …`（best-effort，写入 warning 本身也可能失败）；**始终**返回子进程 exit code，不因终端 IO 错误改变 exit。
+- **写失败**：`write_passthrough_output` 在 stdout/stderr 写入失败时向**对侧**流打印 `[foldback] warning: … write failed: …`（best-effort，写入 warning 本身也可能失败）；**始终**返回子进程 exit code，不因终端 IO 错误改变 exit。
 - **Exit code**：`status.code()` 原样；Unix signal 终止 → `128 + signal`；无法解析 → 128。
 - **Exec 失败**（命令不存在）：stderr 打印错误，exit 127；无 capture、无 stash。
 
@@ -149,14 +149,14 @@ handle_run(command, args)
 ### 5.1 目录布局
 
 ```
-$RAWREF_DATA_DIR/          # 默认 ~/.local/share/rawref
+$FOLDBACK_DATA_DIR/          # 默认 ~/.local/share/foldback
 ├── meta.db                 # SQLite WAL
 └── blobs/
     ├── <ref_id>.stdout
     └── <ref_id>.stderr
 ```
 
-`RAWREF_DATA_DIR` 优先；否则 `XDG_DATA_HOME/rawref`；再否则 `$HOME/.local/share/rawref`。**三者均不可用则报错**（passthrough fail-open；`rawref output …` exit 3）。**无 `/tmp` fallback**。
+`FOLDBACK_DATA_DIR` 优先；否则 `XDG_DATA_HOME/foldback`；再否则 `$HOME/.local/share/foldback`。**三者均不可用则报错**（passthrough fail-open；`foldback output …` exit 3）。**无 `/tmp` fallback**。
 
 `Stash::open` 显式设置权限：`data_dir` 与 `blobs/` → **0700**；`meta.db` → **0600**（WAL sidecar 权限不保证，由 0700 父目录约束访问）。
 
@@ -182,7 +182,7 @@ $RAWREF_DATA_DIR/          # 默认 ~/.local/share/rawref
 
 - **生成**：`rand::thread_rng()` 取 16 字节 → `hex::encode` → 32 字符小写 hex。
 - **校验**：`validate_ref_id` 要求长度 32 且 `is_ascii_hexdigit()`（大小写均可）；非法 → `InvalidRef`（exit 2）。
-- **SHA-256**：save 时对 blob 全文计算 digest 存入 metadata；**所有 retrieve 路径**（`get`/`tail`/`grep`，含 `both` 与 offset/limit）先**全量读入并校验 size + SHA-256**，校验通过后再切片/行操作。不匹配 → `RawrefError::Corrupted` → **exit 3**（区别于 NotFound/Expired 的 exit 1）。
+- **SHA-256**：save 时对 blob 全文计算 digest 存入 metadata；**所有 retrieve 路径**（`get`/`tail`/`grep`，含 `both` 与 offset/limit）先**全量读入并校验 size + SHA-256**，校验通过后再切片/行操作。不匹配 → `FoldbackError::Corrupted` → **exit 3**（区别于 NotFound/Expired 的 exit 1）。
 - **一次 capture 一个 ref_id**：stdout / stderr 各一文件，共享同一 ref_id 与 metadata 行。
 
 ### 5.4 save 顺序与原子性
@@ -245,7 +245,7 @@ exceeds = len > 10KB OR line_count > 100
 **Generic（通用 head/tail，Phase 1 兼容）**：
 
 ```text
-[rawref ref=<32-hex> raw=<bytes>b lines=<n> omitted=<m> expires=<YYYY-MM-DDTHH:MM:SSZ>]
+[foldback ref=<32-hex> raw=<bytes>b lines=<n> omitted=<m> expires=<YYYY-MM-DDTHH:MM:SSZ>]
 ```
 
 - 插入在 head 与 tail 之间，自带 trailing `\n`。
@@ -254,8 +254,8 @@ exceeds = len > 10KB OR line_count > 100
 **Specialized（专用 reducer，pytest/cargo test）**：
 
 ```text
-[rawref ref=<32-hex> raw=<bytes>b lines=<n> view=pytest mode=summary recoverability=retrievable expires=<YYYY-MM-DDTHH:MM:SSZ>]
-[rawref ref=<32-hex> raw=<bytes>b lines=<n> view=cargo-test mode=summary recoverability=retrievable expires=<YYYY-MM-DDTHH:MM:SSZ>]
+[foldback ref=<32-hex> raw=<bytes>b lines=<n> view=pytest mode=summary recoverability=retrievable expires=<YYYY-MM-DDTHH:MM:SSZ>]
+[foldback ref=<32-hex> raw=<bytes>b lines=<n> view=cargo-test mode=summary recoverability=retrievable expires=<YYYY-MM-DDTHH:MM:SSZ>]
 ```
 
 - `view=` 声明使用了 pytest/cargo-test 专用 reducer
@@ -277,12 +277,12 @@ exceeds = len > 10KB OR line_count > 100
 
 ## 7. Retrieve bypass（output 子命令）
 
-所有 `rawref output *` 路径：
+所有 `foldback output *` 路径：
 
 1. `Stash::open` — 失败 exit 3；
 2. 调用 `commands::*::run` → `stash.read_*` / `meta` / `purge_expired`；
 3. 结果 **直接 `write_all` 到 stdout**，不经 `condenser`；
-4. 返回 rawref 管理 exit code。
+4. 返回 foldback 管理 exit code。
 
 | 子命令 | 默认 | 实现要点 |
 |--------|------|----------|
@@ -325,7 +325,7 @@ exceeds = len > 10KB OR line_count > 100
 
 ### 8.1 并发 capture
 
-- 多进程/多线程共享同一 `RAWREF_DATA_DIR`：依赖 SQLite WAL + OS 文件锁。
+- 多进程/多线程共享同一 `FOLDBACK_DATA_DIR`：依赖 SQLite WAL + OS 文件锁。
 - ref_id 随机独立；集成测试 t13、单元测试 `test_concurrent_saves_no_collision`（8 线程）验证无碰撞、数据不串。
 - **已知**：高并发下可能 SQLite `BUSY` → passthrough 路径 stash 失败 → fail-open（仍输出 raw）。
 
@@ -333,9 +333,9 @@ exceeds = len > 10KB OR line_count > 100
 
 | 场景 | 行为 |
 |------|------|
-| `data_dir()` 不可用 | stderr `[rawref] stash unavailable (fail-open): …`；写 raw；子进程 exit code |
-| `Stash::open` 失败 | stderr `[rawref] stash open failed (fail-open): …`；写 raw；子进程 exit code |
-| `save` 失败 | stderr `[rawref] stash write failed (fail-open): …`；同上 |
+| `data_dir()` 不可用 | stderr `[foldback] stash unavailable (fail-open): …`；写 raw；子进程 exit code |
+| `Stash::open` 失败 | stderr `[foldback] stash open failed (fail-open): …`；写 raw；子进程 exit code |
+| `save` 失败 | stderr `[foldback] stash write failed (fail-open): …`；同上 |
 | 只读 data dir（t07） | 仍 exit 0（子进程成功时），输出完整 |
 
 **约束**：fail-open 时**不**精简、**不**插入 marker；agent 无法从输出中获得 ref。
@@ -355,16 +355,16 @@ exceeds = len > 10KB OR line_count > 100
 
 ## 9. 错误码
 
-### 9.1 管理命令（`rawref output …`）
+### 9.1 管理命令（`foldback output …`）
 
-| Code | `RawrefError` | 场景 |
+| Code | `FoldbackError` | 场景 |
 |------|---------------|------|
 | 0 | — | 成功 |
 | 1 | `NotFound`, `Expired` | ref 不存在或已过期 |
 | 2 | `InvalidRef`, `BadInput` | 缺参数、未知 flag、ref 格式非法 |
 | 3 | `Storage`, `Io`, **`Corrupted`** | SQLite/文件 IO（含 `Stash::open` 失败）；**blob size 或 SHA-256 不匹配** |
 
-`RawrefError::exit_code()` 集中映射；错误消息打印到 stderr（`rawref: …`）。
+`FoldbackError::exit_code()` 集中映射；错误消息打印到 stderr（`foldback: …`）。
 
 ### 9.2 Passthrough
 
@@ -385,11 +385,11 @@ exceeds = len > 10KB OR line_count > 100
 
 ```
 ┌─────────────────────────────────────────┐
-│  Agent / 调用方 shell                    │  显式前缀 rawref；可见 condensed + marker
+│  Agent / 调用方 shell                    │  显式前缀 foldback；可见 condensed + marker
 └─────────────────┬───────────────────────┘
                   │ spawn once
 ┌─────────────────▼───────────────────────┐
-│  rawref 进程                             │  读写 RAWREF_DATA_DIR；不 sandbox 子命令
+│  foldback 进程                             │  读写 FOLDBACK_DATA_DIR；不 sandbox 子命令
 └─────────────────┬───────────────────────┘
                   │ exec
 ┌─────────────────▼───────────────────────┐
@@ -410,7 +410,7 @@ exceeds = len > 10KB OR line_count > 100
 | 跨 session 引用旧 ref | TTL + Expired | 过期前任何持有 ref 者可 `get` 全文 |
 | 精简丢失 agent 可见上下文 | marker 提示 + tail/grep/get | agent 可能不 follow up |
 | 磁盘耗尽 | save 失败 → fail-open | 大输出全量 RAM + 磁盘，无配额 |
-| 子命令恶意行为 | **不**隔离；rawref 与子命令同用户 | 常规 shell 风险 |
+| 子命令恶意行为 | **不**隔离；foldback 与子命令同用户 | 常规 shell 风险 |
 | SQLite / blob 损坏 | retrieve 全量 size+SHA 校验 → `Corrupted` exit 3 | 无自动 repair；tampered 字节不会部分返回 |
 
 ### 10.3 非目标（安全）
@@ -450,8 +450,8 @@ exceeds = len > 10KB OR line_count > 100
 | plan 附录 B | 「以 plan 为规范」 | **本文档以代码为准**（plan 自身亦注明测试优先） |
 | SHA 校验时机 | plan implied integrity | **retrieve 路径全量 size+SHA 校验** → `Corrupted` exit 3；save 时写入 digest |
 | save 原子性 | plan 未详述 | blob-first、非事务；**普通错误 best-effort rollback**；**crash 仍可能 orphan** |
-| 写终端 IO | plan 未详述 | 失败向对侧流打印 `[rawref] warning: …`；**不覆盖**子进程 exit |
-| data dir 解析 | plan 默认 `~/.local/share/rawref` | `RAWREF_DATA_DIR` → `XDG_DATA_HOME/rawref` → `$HOME/.local/share/rawref`；**无 `/tmp` fallback** |
+| 写终端 IO | plan 未详述 | 失败向对侧流打印 `[foldback] warning: …`；**不覆盖**子进程 exit |
+| data dir 解析 | plan 默认 `~/.local/share/foldback` | `FOLDBACK_DATA_DIR` → `XDG_DATA_HOME/foldback` → `$HOME/.local/share/foldback`；**无 `/tmp` fallback** |
 | 目录权限 | plan 0600 blobs | `data_dir`/`blobs/` **0700**；`meta.db` + blob 文件 **0600** |
 | condenser 宽行 tail | — | 21–40 宽行超字节阈值时 tail 不得被丢弃（已修） |
 

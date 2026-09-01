@@ -6,12 +6,12 @@
 /// full-pipeline marker boundary (Fix 1), verbose gate matrix (Fix 2),
 /// and warnings Docs-footer exclusion (Fix 3).
 use chrono::Utc;
-use rawref_lib::argv::NormalizedCommand;
-use rawref_lib::display::context::{ChannelContext, CommandContext};
-use rawref_lib::display::outcome::{Recoverability, ReductionKind, SkipReason, ViewKind};
-use rawref_lib::display::reducers::pytest::PytestReducer;
-use rawref_lib::display::registry::{Reducer, Registry};
-use rawref_lib::stash::Channel;
+use foldback_lib::argv::NormalizedCommand;
+use foldback_lib::display::context::{ChannelContext, CommandContext};
+use foldback_lib::display::outcome::{Recoverability, ReductionKind, SkipReason, ViewKind};
+use foldback_lib::display::reducers::pytest::PytestReducer;
+use foldback_lib::display::registry::{Reducer, Registry};
+use foldback_lib::stash::Channel;
 
 const REF_ID: &str = "abc123def456abc123def456abc123de";
 
@@ -58,8 +58,8 @@ fn fixture(name: &str) -> Vec<u8> {
 
 fn assert_applied(display: &[u8]) {
     assert!(
-        !display.windows(7).any(|w| w == b"[rawref"),
-        "reducer must not inject rawref marker"
+        !display.windows(7).any(|w| w == b"[foldback"),
+        "reducer must not inject foldback marker"
     );
 }
 
@@ -767,7 +767,7 @@ fn test_pipeline_specialized_marker_on_own_line() {
         expires_at: &exp,
     };
     let registry = Registry::default_registry();
-    let out = rawref_lib::display::render_channel(&raw, &ctx, &registry, true);
+    let out = foldback_lib::display::render_channel(&raw, &ctx, &registry, true);
 
     assert!(out.applied, "passing_many must be applied by pipeline");
 
@@ -776,7 +776,7 @@ fn test_pipeline_specialized_marker_on_own_line() {
 
     // Specialized marker must be present.
     assert!(
-        display_str.contains("[rawref ref="),
+        display_str.contains("[foldback ref="),
         "specialized marker must be present in pipeline output"
     );
     assert!(
@@ -784,9 +784,9 @@ fn test_pipeline_specialized_marker_on_own_line() {
         "marker must contain view=pytest"
     );
 
-    // The byte immediately before "[rawref ref=" must be '\n' (marker on own line).
+    // The byte immediately before "[foldback ref=" must be '\n' (marker on own line).
     let marker_pos = display_str
-        .find("[rawref ref=")
+        .find("[foldback ref=")
         .expect("marker must be present");
     assert!(marker_pos > 0, "marker must not be the very first byte");
     let byte_before_marker = display_bytes[marker_pos - 1];
@@ -1081,8 +1081,8 @@ fn test_quiet_passing_many_no_marker_in_candidate() {
 
     if out.applied {
         assert!(
-            !out.display.windows(7).any(|w| w == b"[rawref"),
-            "reducer must not inject rawref marker"
+            !out.display.windows(7).any(|w| w == b"[foldback"),
+            "reducer must not inject foldback marker"
         );
     }
 }
@@ -1238,7 +1238,7 @@ fn test_quiet_pipeline_produces_pytest_marker() {
         expires_at: &exp,
     };
     let registry = Registry::default_registry();
-    let out = rawref_lib::display::render_channel(&raw, &ctx, &registry, true);
+    let out = foldback_lib::display::render_channel(&raw, &ctx, &registry, true);
 
     assert!(
         out.applied,
@@ -1262,7 +1262,7 @@ fn test_quiet_pipeline_produces_pytest_marker() {
 
     // Marker must be on its own line.
     let marker_pos = display_str
-        .find("[rawref ref=")
+        .find("[foldback ref=")
         .expect("specialized marker must be present");
     assert!(marker_pos > 0, "marker must not be at position 0");
     assert_eq!(
@@ -1284,7 +1284,7 @@ fn test_quiet_pipeline_strictly_beneficial() {
         expires_at: &exp,
     };
     let registry = Registry::default_registry();
-    let out = rawref_lib::display::render_channel(&raw, &ctx, &registry, true);
+    let out = foldback_lib::display::render_channel(&raw, &ctx, &registry, true);
 
     assert!(
         out.display.len() < raw.len(),

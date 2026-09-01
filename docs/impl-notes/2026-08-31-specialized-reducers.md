@@ -15,7 +15,7 @@ This document records the **complete Phase 2 implementation** of specialized red
 - `src/argv.rs` — NormalizedCommand enum, normalize() function
 - `src/display/{context, outcome, marker, registry, mod}.rs` — pipeline infrastructure
 - `src/display/generic.rs` — Phase 1 generic head/tail algorithm
-- `src/main.rs` — updated to call display::render_passthrough with RAWREF_REDUCERS env
+- `src/main.rs` — updated to call display::render_passthrough with FOLDBACK_REDUCERS env
 
 ### Reducer Implementations (Waves 3–4, complete)
 - `src/display/reducers/pytest.rs` — complete implementation with **39 source-level unit tests**
@@ -161,10 +161,10 @@ No IO, no spawn, no exit mutation.
 
 ### Architecture
 Each test:
-1. Creates isolated `TempDir` for `RAWREF_DATA_DIR`
+1. Creates isolated `TempDir` for `FOLDBACK_DATA_DIR`
 2. Creates isolated `TempDir` for fake-bin `PATH` 
 3. Writes shell scripts (pytest, cargo, python3) that output >100-line real-style content
-4. Spawns `rawref` with isolated environment
+4. Spawns `foldback` with isolated environment
 5. Verifies marker format and never-worse property
 
 **No external pytest/cargo required**: Fake scripts output hardcoded fixture-like content, deterministic and reproducible.
@@ -173,7 +173,7 @@ Each test:
 The 18 tests implement the plan's p01–p15 matrix: generic compatibility,
 pytest/cargo specialized views, `python -m pytest` routing, strict never-worse,
 parse and non-UTF-8 fallback, short-output passthrough, machine-readable gates,
-`RAWREF_REDUCERS=0`, unmatched commands, stash fail-open, exit-code passthrough,
+`FOLDBACK_REDUCERS=0`, unmatched commands, stash fail-open, exit-code passthrough,
 marker extraction, conservative cargo stderr handling, byte-exact retrieval, and
 single-execution counters. The source file is authoritative for individual test
 function names.
@@ -185,19 +185,19 @@ function names.
 ### Marker contracts
 **Generic** (Phase 1 compat):
 ```
-[rawref ref=<32hex> raw=<bytes>b lines=<n> omitted=<m> expires=<ISO8601Z>]
+[foldback ref=<32hex> raw=<bytes>b lines=<n> omitted=<m> expires=<ISO8601Z>]
 ```
 - `omitted=` is precise (head+tail line count between them)
 
 **Specialized** (pytest/cargo):
 ```
-[rawref ref=<32hex> raw=<bytes>b lines=<n> view=pytest mode=summary recoverability=retrievable expires=<ISO8601Z>]
+[foldback ref=<32hex> raw=<bytes>b lines=<n> view=pytest mode=summary recoverability=retrievable expires=<ISO8601Z>]
 ```
 - **No `omitted=`** (semantic recomposition, lines unmappable)
 - **Contains `view=` / `mode=` / `recoverability=retrievable`**
 
 ### Environment variables
-- `RAWREF_REDUCERS=0` disables specialized; uses only generic (Phase 1 compatible)
+- `FOLDBACK_REDUCERS=0` disables specialized; uses only generic (Phase 1 compatible)
 - Any other value (unset, `""`, `"1"`, etc.) enables specialized reducers
 
 ### argv normalization

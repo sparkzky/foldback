@@ -1,16 +1,16 @@
 [package]
-name = "rawref"
+name = "foldback"
 version = "0.1.0"
 edition = "2021"
 description = "Reversible CLI output capture: run once, replay any channel byte-exact"
 license = "MIT"
 
 [[bin]]
-name = "rawref"
+name = "foldback"
 path = "src/main.rs"
 
 [lib]
-name = "rawref_lib"
+name = "foldback_lib"
 path = "src/lib.rs"
 
 [dependencies]

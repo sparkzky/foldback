@@ -16,7 +16,7 @@
 /// - Each `test result:` final summary line — kept
 /// - No `test result:` found in output → `ParseFailed`
 ///
-/// The candidate is returned **without** the rawref marker; the pipeline appends it.
+/// The candidate is returned **without** the foldback marker; the pipeline appends it.
 use crate::argv::NormalizedCommand;
 use crate::display::context::ChannelContext;
 use crate::display::outcome::{Recoverability, ReduceOutcome, ReductionKind, SkipReason, ViewKind};
@@ -417,8 +417,8 @@ mod tests {
         let out = CargoTestReducer.reduce(PASSING_MANY, &ctx);
         let s = display_str(&out);
         assert!(
-            !s.contains("[rawref"),
-            "candidate must not contain the rawref marker (pipeline appends it)"
+            !s.contains("[foldback"),
+            "candidate must not contain the foldback marker (pipeline appends it)"
         );
     }
 
@@ -769,8 +769,8 @@ mod tests {
         let out = CargoTestReducer.reduce(MIXED_MULTI_BINARY, &ctx);
         let s = display_str(&out);
         assert!(
-            !s.contains("[rawref"),
-            "candidate must not contain rawref marker (pipeline appends it)"
+            !s.contains("[foldback"),
+            "candidate must not contain foldback marker (pipeline appends it)"
         );
     }
 }

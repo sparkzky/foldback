@@ -5,9 +5,9 @@ use crate::stash::Channel;
 
 /// Per-invocation context built from `CaptureResult` after Stash save succeeds.
 pub struct CommandContext {
-    /// `argv[0]` as passed to rawref, unmodified.
+    /// `argv[0]` as passed to foldback, unmodified.
     pub command: String,
-    /// `argv[1..]` as passed to rawref.
+    /// `argv[1..]` as passed to foldback.
     pub args: Vec<String>,
     /// Normalized form of `command` + `args`, used for reducer dispatch.
     pub normalized: NormalizedCommand,

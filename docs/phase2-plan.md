@@ -1,6 +1,6 @@
-# rawref Phase 2 实现计划 — 专用 Reducer 框架
+# foldback Phase 2 实现计划 — 专用 Reducer 框架
 
-> **定位**：在 Phase 1（commit `b1b72dc`，92/92 测试）之上，交付**可测试的 display/reducer 框架**、**argv 规范化**、**pytest reducer**、**cargo test reducer**、**fixture/E2E** 与 **`RAWREF_REDUCERS=0` opt-out**。
+> **定位**：在 Phase 1（commit `b1b72dc`，92/92 测试）之上，交付**可测试的 display/reducer 框架**、**argv 规范化**、**pytest reducer**、**cargo test reducer**、**fixture/E2E** 与 **`FOLDBACK_REDUCERS=0` opt-out**。
 > **研究依据**：RTK 的 registry / parse fallback / never-worse / lossiness / exit 保护；ANOLISA Tokenless 的 arbitration / recoverability 思想，**不**照搬 StashLedger 与 middleware。
 > **权威基线**：`docs/plan.md`（Phase 1 规格）、`docs/design.md`（架构）、`src/` + `tests/`（实现与验收）。
 > **实现注记路径**：`docs/impl-notes/2026-08-31-specialized-reducers.md`（Phase 2 偏离与决策记录）。
@@ -20,7 +20,7 @@
 | G5 | **Never-worse（按字节）**：含 marker 字节计入；专用视图 ≥ raw 则回退 generic；generic ≥ raw 则 passthrough | 单元 + 集成 never-worse 矩阵 |
 | G6 | **Raw-first 不变**：Stash save 完成后才调用 reducer；fail-open 跳过 reducer | 现有 t07 + 新增 stash-fail-open-reducer 测 |
 | G7 | **Marker 契约**：generic 保持 Phase 1 格式（含精确 `omitted=`）；专用 marker 含 `view=`/`mode=`/`recoverability=retrievable`、**不含** `omitted=`；`output get` byte-exact 不变；**inline semantic lossy, end-to-end retrievable** | t03 + marker 解析单测 |
-| G8 | **Opt-out**：`RAWREF_REDUCERS=0` 回退 Phase 1 generic condenser 行为 | 集成 opt-out 测 |
+| G8 | **Opt-out**：`FOLDBACK_REDUCERS=0` 回退 Phase 1 generic condenser 行为 | 集成 opt-out 测 |
 | G9 | **Phase 1 全量回归**：现有 92 项测试全部保留且通过 | `cargo test` 基线 |
 
 ### 1.2 非目标（Phase 2 明确不做）
@@ -31,7 +31,7 @@
 | **Streaming spill-to-disk** | capture 仍全量 `Vec<u8>` | Phase 3 |
 | **SQLite schema migration** | 不在 DB 存 reduction/recoverability；仅 marker 与 impl-notes | Phase 3+ |
 | **Stats / quota / metrics** | 无 token 估算、无 retrieve 命中率 | Phase 3 |
-| **透明 hook / middleware** | agent 仍显式 `rawref` 前缀 | 长期非目标 |
+| **透明 hook / middleware** | agent 仍显式 `foldback` 前缀 | 长期非目标 |
 | **`--message-format=json` / nextest / 自定义 cargo 格式** | 检测后 passthrough generic | Phase 3+ |
 | **真实临时 git 项目 E2E** | 本阶段用 pytest/cargo fixture 小 crate | Phase 3+ |
 | **Regex grep / JSON path retrieve** | plan §12 #3 | Phase 3+ |
@@ -47,11 +47,11 @@
 | I2 | **Raw-first** — 先 save raw → 再 display；stash 失败 fail-open 原样输出 | reducer 仅在 stash 成功后调用 |
 | I3 | **通道分离** — stdout/stderr 独立 blob 与 condense | reducer 按通道独立调用 |
 | I4 | **Exit code 透传** — passthrough exit = 子进程 exit；reducer 不得修改 | `ReduceOutcome` 无 exit 字段 |
-| I5 | **检索 bypass** — `rawref output *` 不经过 reducer/condenser | commands/* 不 import display |
+| I5 | **检索 bypass** — `foldback output *` 不经过 reducer/condenser | commands/* 不 import display |
 | I6 | **Ref 不可预测** — 128-bit 随机 hex，非内容寻址 | 不变 |
 | I7 | **过期即失效** — expired ref → exit 1 | 不变 |
 | I8 | **Never-worse** — display 字节数（含 marker）严格小于 raw 才替换 | Phase 2 扩展至专用+generic 两级 |
-| I9 | **Marker 可提取** — 现有 `extract_ref_id()` 对 Phase 1 与 Phase 2 marker 均有效 | 前缀 `[rawref ref=<32hex>` 不变 |
+| I9 | **Marker 可提取** — 现有 `extract_ref_id()` 对 Phase 1 与 Phase 2 marker 均有效 | 前缀 `[foldback ref=<32hex>` 不变 |
 
 ---
 
@@ -107,12 +107,12 @@ display(raw_bytes, ctx) ──►
 |------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Why** | 语义摘要（pytest/cargo summary）inline **有损**；recoverability 来自 raw-first + `output get`，非 marker 声称可逆 |
 | **Generic marker** | Phase 1 原格式不变，含可精确计算的 `omitted=` |
-| **Specialized marker** | `[rawref ref=<32hex> raw=<bytes>b lines=<n> view=pytest|cargo-test mode=summary recoverability=retrievable expires=...]`；**不含** `omitted=`（重组 failure/warning 段时无法精确证明行数，避免虚假元数据） |
+| **Specialized marker** | `[foldback ref=<32hex> raw=<bytes>b lines=<n> view=pytest|cargo-test mode=summary recoverability=retrievable expires=...]`；**不含** `omitted=`（重组 failure/warning 段时无法精确证明行数，避免虚假元数据） |
 | **备选 A（拒绝）** | 专用 marker 保留 `omitted=` — 重组视图时元数据不可证 |
 | **备选 B（Phase 3）** | `refs` 表持久化 `reduction_kind` / `recoverability` — 本阶段不做 |
 | **验收** | marker 单测；info 仍只含 Phase 1 字段；专用 marker 断言无 `omitted=` |
 
-### 2.6 `RAWREF_REDUCERS=0` 回退 Phase 1 generic
+### 2.6 `FOLDBACK_REDUCERS=0` 回退 Phase 1 generic
 
 | 决策 | env 非 `"0"` 时启用 registry；`=0` 时 **`display` 仅调用 legacy generic**（等价现 `condenser::condense`） |
 |------|----------------------------------------------------------------------------------------------------------|
@@ -213,7 +213,7 @@ pub enum Recoverability {
 }
 
 pub enum SkipReason {
-    Disabled,           // RAWREF_REDUCERS=0
+    Disabled,           // FOLDBACK_REDUCERS=0
     NoMatch,            // Generic command
     ParseFailed,
     MachineReadable,    // --collect-only, json format, etc.
@@ -308,8 +308,8 @@ fn command_basename(command: &str) -> &str {
 
 | 变量 | 默认 | 用途 |
 |------|------|------|
-| `RAWREF_DATA_DIR` | （Phase 1 不变） | Stash 根 |
-| `RAWREF_REDUCERS` | 启用（未设或非 `0`） | `0` = 仅 generic，不调用专用 reducer |
+| `FOLDBACK_DATA_DIR` | （Phase 1 不变） | Stash 根 |
+| `FOLDBACK_REDUCERS` | 启用（未设或非 `0`） | `0` = 仅 generic，不调用专用 reducer |
 
 ---
 
@@ -321,7 +321,7 @@ fn command_basename(command: &str) -> &str {
 handle_run (stash Ok)
 │
 ├─ cmd_ctx = CommandContext { normalized: argv::normalize(...) }
-├─ reducers_enabled = env("RAWREF_REDUCERS") != "0"
+├─ reducers_enabled = env("FOLDBACK_REDUCERS") != "0"
 │
 ├─ stdout_out = render_channel(stdout_raw, ctx_stdout, registry, reducers_enabled)
 └─ stderr_out = render_channel(stderr_raw, ctx_stderr, registry, reducers_enabled)
@@ -350,7 +350,7 @@ else → return raw passthrough
 **Generic（Phase 1 不变，`ReductionKind::GenericTruncation`）**：
 
 ```text
-[rawref ref=<32-hex> raw=<bytes>b lines=<n> omitted=<m> expires=<ISO8601Z>]
+[foldback ref=<32-hex> raw=<bytes>b lines=<n> omitted=<m> expires=<ISO8601Z>]
 ```
 
 - `raw=` / `lines=` / `omitted=` 相对 **原始 raw** 精确计算（head/tail 算法可证）。
@@ -359,8 +359,8 @@ else → return raw passthrough
 **专用（`ReductionKind::SemanticSummary`，向后兼容前缀）**：
 
 ```text
-[rawref ref=<32-hex> raw=<bytes>b lines=<n> view=pytest mode=summary recoverability=retrievable expires=<ISO8601Z>]
-[rawref ref=<32-hex> raw=<bytes>b lines=<n> view=cargo-test mode=summary recoverability=retrievable expires=<ISO8601Z>]
+[foldback ref=<32-hex> raw=<bytes>b lines=<n> view=pytest mode=summary recoverability=retrievable expires=<ISO8601Z>]
+[foldback ref=<32-hex> raw=<bytes>b lines=<n> view=cargo-test mode=summary recoverability=retrievable expires=<ISO8601Z>]
 ```
 
 - **含**：`raw=`（原始字节数）、`lines=`（原始行数）、`view=`、`mode=summary`、`recoverability=retrievable`、`expires=`。
@@ -369,7 +369,7 @@ else → return raw passthrough
 
 **共通规则**：
 
-- **提取规则**：自 `[rawref ref=` 起 32 位 hex；后续空格分隔键值对为可选。
+- **提取规则**：自 `[foldback ref=` 起 32 位 hex；后续空格分隔键值对为可选。
 - **`output get`**：仍返回 stash blob 原始字节，**不含** marker。
 - **语义总结**：**inline semantic lossy, end-to-end retrievable**。
 
@@ -423,7 +423,7 @@ Phase 2 新增 marker 单测：`view=pytest` 不影响 ref 提取。
 <short test summary info 段 — 原文>
 <warnings 摘要 — 仅缩略多余行，不捏造 warning 文本>
 <最终 summary 行 — 必须来自 raw，禁止合成 passed 数>
-[rawref ref=... view=pytest mode=summary recoverability=retrievable ...]
+[foldback ref=... view=pytest mode=summary recoverability=retrievable ...]
 ```
 
 - **成功无失败**：保留最终 summary 行 + warnings 摘要（若有）+ marker；**不得**注入虚假 `FAILED`
@@ -496,7 +496,7 @@ E2E：临时 venv + 最小 `test_*.py` 或通过 `python3 -m pytest` 对 fixture
 | `tests/fixtures/cargo-test/json_format.txt` | gate |
 | `tests/fixtures/cargo-test/non_utf8.bin` | NonUtf8 |
 
-E2E：`tests/fixtures/cargo-test/minimal-crate/` — 最小 Rust lib + 若干单元测试；`rawref cargo test` 真实执行。
+E2E：`tests/fixtures/cargo-test/minimal-crate/` — 最小 Rust lib + 若干单元测试；`foldback cargo test` 真实执行。
 
 ---
 
@@ -505,7 +505,7 @@ E2E：`tests/fixtures/cargo-test/minimal-crate/` — 最小 Rust lib + 若干单
 | 文件 | 改动类型 | 说明 |
 |------|----------|------|
 | `src/lib.rs` | 修改 | `pub mod display; pub mod argv;` |
-| `src/main.rs` | 修改 | `handle_run` 调用 `display::render_passthrough`；读 `RAWREF_REDUCERS` |
+| `src/main.rs` | 修改 | `handle_run` 调用 `display::render_passthrough`；读 `FOLDBACK_REDUCERS` |
 | `src/condenser.rs` | 修改 | 算法迁至 `display/generic.rs`；保留 re-export 与 Phase 1 单测路径 |
 | `src/display/mod.rs` | **新增** | pipeline 入口 |
 | `src/display/context.rs` | **新增** | CommandContext / ChannelContext |
@@ -546,7 +546,7 @@ E2E：`tests/fixtures/cargo-test/minimal-crate/` — 最小 Rust lib + 若干单
 
 - 复制 Phase 1 condenser 断言到 `display/generic.rs` 单测
 - 新增：`render_channel` 对 Generic 命令 + 长输出 ≡ 现 `condense()` 字节级一致
-- 新增：`RAWREF_REDUCERS=0` ≡ Phase 1
+- 新增：`FOLDBACK_REDUCERS=0` ≡ Phase 1
 
 **GREEN**
 
@@ -609,8 +609,8 @@ E2E：`tests/fixtures/cargo-test/minimal-crate/` — 最小 Rust lib + 若干单
 - `integration_phase2.rs`：
   - pytest E2E（minimal tests）
   - cargo minimal-crate E2E
-  - opt-out：`RAWREF_REDUCERS=0` 无 `view=`
-  - unmatched `rawref seq 1 200` 与 Phase 1 字节等价
+  - opt-out：`FOLDBACK_REDUCERS=0` 无 `view=`
+  - unmatched `foldback seq 1 200` 与 Phase 1 字节等价
   - stash fail-open：无 marker、无 panic
   - t03 类 byte-exact get 对专用 marker 仍成立
 
@@ -629,8 +629,8 @@ E2E：`tests/fixtures/cargo-test/minimal-crate/` — 最小 Rust lib + 若干单
 
 | 套件 | 数量 | 要求 | 状态 |
 |------|------|------|------|
-| `rawref_lib` 单元 | 52 | 全过 | ✅ |
-| `rawref` binary 单测 | 4 | 全过 | ✅ |
+| `foldback_lib` 单元 | 52 | 全过 | ✅ |
+| `foldback` binary 单测 | 4 | 全过 | ✅ |
 | `tests/cli_errors.rs` | 17 | 全过 | ✅ |
 | `tests/integration_tests.rs` t01–t16 | 19 | 全过 | ✅ |
 | **合计** | **92** | **92/92** | **✅** |
@@ -647,7 +647,7 @@ E2E：`tests/fixtures/cargo-test/minimal-crate/` — 最小 Rust lib + 若干单
 | p06 | 非 UTF-8 | generic/raw；get 仍 byte-exact | ✅ |
 | p07 | 无收益 | passthrough 无 marker | ✅ |
 | p08 | Machine-readable gates | `--collect-only` / `-v` / `--message-format` → generic 行为 | ✅ |
-| p09 | `RAWREF_REDUCERS=0` | 无专用 view；generic 等价 Phase 1 | ✅ |
+| p09 | `FOLDBACK_REDUCERS=0` | 无专用 view；generic 等价 Phase 1 | ✅ |
 | p10 | unmatched 命令 | 字节等价 Phase 1 | ✅ |
 | p11 | stash fail-open | 无 reducer；raw 输出；exit=子进程 | ✅ |
 | p12 | exit code | pytest/cargo 失败仍透传非零 exit | ✅ |
@@ -683,7 +683,7 @@ E2E：`tests/fixtures/cargo-test/minimal-crate/` — 最小 Rust lib + 若干单
 
 ### 11.2 回滚
 
-1. **运行时**：`RAWREF_REDUCERS=0` → Phase 1 generic 行为
+1. **运行时**：`FOLDBACK_REDUCERS=0` → Phase 1 generic 行为
 2. **代码**：revert Phase 2 commit；92 测试为安全网
 3. **数据**：无 schema 变更；Stash blob 与 Phase 1 兼容
 
@@ -724,7 +724,7 @@ Phase 2 完整实现（Waves 0–5）已完成：
 - [x] **D5** 三级 pipeline candidate → generic → raw 实现且单测覆盖 ✅
 - [x] **D6** never-worse 按字节严格（含 marker）；Phase 1 宽行 fixture 仍 passthrough ✅
 - [x] **D7** marker 契约：`extract_ref_id` 有效；generic Phase 1 格式（含精确 `omitted=`）；specialized 含 `view=`/`mode=`/`recoverability=retrievable`、**不含** `omitted=` ✅
-- [x] **D8** `RAWREF_REDUCERS=0` 回退 Phase 1 generic 行为已测 ✅
+- [x] **D8** `FOLDBACK_REDUCERS=0` 回退 Phase 1 generic 行为已测 ✅
 - [x] **D9** stash fail-open 跳过 reducer；`output get` byte-exact + SHA 与 Phase 1 一致 ✅
 - [x] **D10** passthrough gate：`--collect-only`、`-v`、`--message-format` 等不走专用 ✅
 - [x] **D11** 未匹配命令与 Phase 1 **字节等价** ✅
@@ -739,7 +739,7 @@ Phase 2 完整实现（Waves 0–5）已完成：
 
 ## 附录 A：与 RTK / Tokenless 的对照（设计参考，非复制）
 
-| 概念 | RTK | Tokenless | rawref Phase 2 |
+| 概念 | RTK | Tokenless | foldback Phase 2 |
 |------|-----|-----------|----------------|
 | Registry | 命令 → 过滤器 | middleware 链 | `Registry` + `NormalizedCommand` |
 | Parse fallback | 失败 → 原样/通用 | arbitration | candidate → generic → raw |
@@ -769,7 +769,7 @@ cargo test --locked --test integration_phase2
 cargo test --locked
 
 # Opt-out 手动验证
-RAWREF_REDUCERS=0 cargo run --quiet -- seq 1 200
+FOLDBACK_REDUCERS=0 cargo run --quiet -- seq 1 200
 
 # 质量门
 cargo fmt --check

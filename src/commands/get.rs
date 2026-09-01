@@ -1,4 +1,4 @@
-use crate::error::RawrefError;
+use crate::error::FoldbackError;
 use crate::stash::{Channel, Stash};
 
 pub struct GetArgs {
@@ -9,8 +9,12 @@ pub struct GetArgs {
 }
 
 /// Write the requested channel bytes to `out` without any condensing.
-pub fn run(stash: &Stash, args: &GetArgs, out: &mut dyn std::io::Write) -> Result<(), RawrefError> {
+pub fn run(
+    stash: &Stash,
+    args: &GetArgs,
+    out: &mut dyn std::io::Write,
+) -> Result<(), FoldbackError> {
     let data = stash.read_channel(&args.ref_id, args.channel, args.offset, args.limit)?;
-    out.write_all(&data).map_err(RawrefError::Io)?;
+    out.write_all(&data).map_err(FoldbackError::Io)?;
     Ok(())
 }

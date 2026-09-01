@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum RawrefError {
+pub enum FoldbackError {
     #[error("ref not found: {ref_id}")]
     NotFound { ref_id: String },
     #[error("ref expired: {ref_id}")]
@@ -18,7 +18,7 @@ pub enum RawrefError {
     Corrupted { ref_id: String, channel: String },
 }
 
-impl RawrefError {
+impl FoldbackError {
     pub fn exit_code(&self) -> i32 {
         match self {
             Self::NotFound { .. } | Self::Expired { .. } => 1,
@@ -28,7 +28,7 @@ impl RawrefError {
     }
 }
 
-impl From<rusqlite::Error> for RawrefError {
+impl From<rusqlite::Error> for FoldbackError {
     fn from(e: rusqlite::Error) -> Self {
         Self::Storage(e.to_string())
     }

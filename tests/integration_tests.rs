@@ -1,4 +1,4 @@
-//! Integration tests — all run against the compiled `rawref` binary.
+//! Integration tests — all run against the compiled `foldback` binary.
 //!
 //! TDD RED phase: these were written before the implementation existed and
 //! verified to fail. GREEN phase: full implementation makes them pass.
@@ -8,12 +8,12 @@ use tempfile::TempDir;
 
 /// Convenience: build an assert_cmd Command with a fresh isolated data dir.
 fn cmd(tmp: &TempDir) -> Command {
-    let mut c = Command::cargo_bin("rawref").unwrap();
-    c.env("RAWREF_DATA_DIR", tmp.path());
+    let mut c = Command::cargo_bin("foldback").unwrap();
+    c.env("FOLDBACK_DATA_DIR", tmp.path());
     c
 }
 
-fn rawref_with(tmp: &TempDir, args: &[&str]) -> assert_cmd::assert::Assert {
+fn foldback_with(tmp: &TempDir, args: &[&str]) -> assert_cmd::assert::Assert {
     cmd(tmp).args(args).assert()
 }
 
@@ -22,7 +22,7 @@ fn rawref_with(tmp: &TempDir, args: &[&str]) -> assert_cmd::assert::Assert {
 #[test]
 fn t01_short_stdout_passthrough() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["echo", "hello"])
+    foldback_with(&tmp, &["echo", "hello"])
         .success()
         .stdout("hello\n");
 }
@@ -30,7 +30,7 @@ fn t01_short_stdout_passthrough() {
 #[test]
 fn t01b_short_stderr_passthrough() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["sh", "-c", "echo errout >&2"])
+    foldback_with(&tmp, &["sh", "-c", "echo errout >&2"])
         .success()
         .stderr(predicates::str::contains("errout"));
 }
@@ -41,12 +41,12 @@ fn t01b_short_stderr_passthrough() {
 fn t02_long_output_condensed() {
     let tmp = TempDir::new().unwrap();
     // Generate 200 lines (> CONDENSE_LINE_THRESHOLD = 100)
-    let assert = rawref_with(&tmp, &["sh", "-c", "seq 1 200"]);
+    let assert = foldback_with(&tmp, &["sh", "-c", "seq 1 200"]);
     let out = assert.success().get_output().stdout.clone();
     let s = String::from_utf8_lossy(&out);
-    // Must contain the rawref marker
+    // Must contain the foldback marker
     assert!(
-        s.contains("[rawref ref="),
+        s.contains("[foldback ref="),
         "expected condensed marker in stdout, got:\n{s}"
     );
     // Must NOT contain all 200 lines (it's condensed)
@@ -67,7 +67,7 @@ fn t03_byte_exact_recovery() {
     let condensed = String::from_utf8_lossy(&out.stdout);
     let ref_id = extract_ref_id(&condensed).expect("no ref marker in output");
 
-    // Recover via `rawref output get <ref>`
+    // Recover via `foldback output get <ref>`
     let recovered = cmd(&tmp).args(["output", "get", &ref_id]).output().unwrap();
     assert!(recovered.status.success(), "get failed");
 
@@ -136,13 +136,13 @@ fn t04_stdout_stderr_distinct() {
 #[test]
 fn t05_exit_code_zero() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["true"]).success();
+    foldback_with(&tmp, &["true"]).success();
 }
 
 #[test]
 fn t05b_exit_code_nonzero() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["sh", "-c", "exit 42"])
+    foldback_with(&tmp, &["sh", "-c", "exit 42"])
         .failure()
         .code(42);
 }
@@ -150,7 +150,7 @@ fn t05b_exit_code_nonzero() {
 #[test]
 fn t05c_exit_code_one() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["false"]).failure().code(1);
+    foldback_with(&tmp, &["false"]).failure().code(1);
 }
 
 // ── 6. Invalid UTF-8 — binary output handled correctly ──────────────────────
@@ -208,7 +208,7 @@ fn t07_stash_fail_open() {
     // Must still exit 0 and contain the output
     assert!(
         out.status.success(),
-        "rawref must exit 0 even when stash fails"
+        "foldback must exit 0 even when stash fails"
     );
     assert!(
         String::from_utf8_lossy(&out.stdout).contains("fail-open-test")
@@ -327,12 +327,12 @@ fn t11_purge_expired() {
     }
 
     // Now get should return exit 1 (expired)
-    rawref_with(&tmp, &["output", "get", &ref_id])
+    foldback_with(&tmp, &["output", "get", &ref_id])
         .failure()
         .code(1);
 
     // purge --expired should succeed and report 1 purged
-    let purge_out = rawref_with(&tmp, &["output", "purge", "--expired"])
+    let purge_out = foldback_with(&tmp, &["output", "purge", "--expired"])
         .success()
         .get_output()
         .stdout
@@ -384,8 +384,8 @@ fn t13_concurrent_refs_no_collision() {
         .map(|i| {
             let d = dir.clone();
             thread::spawn(move || {
-                let mut c = Command::cargo_bin("rawref").unwrap();
-                c.env("RAWREF_DATA_DIR", &d);
+                let mut c = Command::cargo_bin("foldback").unwrap();
+                c.env("FOLDBACK_DATA_DIR", &d);
                 let out = c
                     .args([
                         "sh",
@@ -413,8 +413,8 @@ fn t13_concurrent_refs_no_collision() {
 
     // Each ref must recover the correct data for its thread
     for (ref_id, i) in &results {
-        let mut c = Command::cargo_bin("rawref").unwrap();
-        c.env("RAWREF_DATA_DIR", tmp.path());
+        let mut c = Command::cargo_bin("foldback").unwrap();
+        c.env("FOLDBACK_DATA_DIR", tmp.path());
         let recovered = c.args(["output", "get", ref_id]).output().unwrap().stdout;
 
         let start = i * 200 + 1;
@@ -434,7 +434,7 @@ fn t13_concurrent_refs_no_collision() {
 #[test]
 fn t14_invalid_ref_format() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["output", "get", "not-a-valid-ref"])
+    foldback_with(&tmp, &["output", "get", "not-a-valid-ref"])
         .failure()
         .code(2);
 }
@@ -444,24 +444,24 @@ fn t14_invalid_ref_format() {
 #[test]
 fn t15_not_found_ref() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["output", "get", "aabbccddeeff00112233445566778899"])
+    foldback_with(&tmp, &["output", "get", "aabbccddeeff00112233445566778899"])
         .failure()
         .code(1);
 }
 
-// ── 16. `rawref run -- <cmd>` explicit escape hatch ──────────────────────────
+// ── 16. `foldback run -- <cmd>` explicit escape hatch ────────────────────────
 
 #[test]
 fn t16_explicit_run_escape_hatch() {
     let tmp = TempDir::new().unwrap();
-    rawref_with(&tmp, &["run", "--", "echo", "explicit"])
+    foldback_with(&tmp, &["run", "--", "echo", "explicit"])
         .success()
         .stdout(predicates::str::contains("explicit"));
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-/// Parse `ref=<ref_id>` from a condensed rawref marker line.
+/// Parse `ref=<ref_id>` from a condensed foldback marker line.
 fn extract_ref_id(s: &str) -> Option<String> {
     for chunk in s.split("ref=") {
         let candidate: String = chunk.chars().take(32).collect();

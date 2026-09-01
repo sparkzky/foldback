@@ -1,6 +1,6 @@
 //! Phase 2 E2E integration tests — black-box coverage of the full pipeline.
 //!
-//! Each test creates isolated TempDirs for RAWREF_DATA_DIR and a fake-bin PATH.
+//! Each test creates isolated TempDirs for FOLDBACK_DATA_DIR and a fake-bin PATH.
 //! Fake `pytest`, `cargo`, and `python3` scripts output >100-line real-style content
 //! and write a counter file to prove single child execution.
 //!
@@ -17,7 +17,7 @@
 //!   p07  short output → raw passthrough, no marker
 //!   p08  --collect-only gate → generic (no view=pytest)
 //!   p08b --message-format=json gate → generic (no view=cargo-test)
-//!   p09  RAWREF_REDUCERS=0 → generic, no view=
+//!   p09  FOLDBACK_REDUCERS=0 → generic, no view=
 //!   p10  unmatched command → generic, no view=
 //!   p11  stash fail-open → raw output, no marker, child exit preserved
 //!   p12  pytest failure exit code passthrough
@@ -33,16 +33,16 @@ use tempfile::TempDir;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-/// rawref Command with isolated data dir and prepended fake-bin in PATH.
-fn rawref_cmd(data_dir: &TempDir, bin_dir: &std::path::Path) -> Command {
-    let mut c = Command::cargo_bin("rawref").unwrap();
-    c.env("RAWREF_DATA_DIR", data_dir.path());
+/// foldback Command with isolated data dir and prepended fake-bin in PATH.
+fn foldback_cmd(data_dir: &TempDir, bin_dir: &std::path::Path) -> Command {
+    let mut c = Command::cargo_bin("foldback").unwrap();
+    c.env("FOLDBACK_DATA_DIR", data_dir.path());
     let orig = std::env::var("PATH").unwrap_or_default();
     c.env("PATH", format!("{}:{}", bin_dir.display(), orig));
     c
 }
 
-/// Extract the first 32-hex ref_id from a rawref marker line.
+/// Extract the first 32-hex ref_id from a foldback marker line.
 /// Works for both generic and specialized markers (prefix `ref=` is shared).
 fn extract_ref_id(s: &str) -> Option<String> {
     for chunk in s.split("ref=") {
@@ -240,7 +240,7 @@ fn p01_generic_long_output_generic_marker() {
     let bin = TempDir::new().unwrap();
 
     // `sh -c "seq 1 200"` is an unmatched command → Generic normalisation
-    let out = rawref_cmd(&tmp, bin.path())
+    let out = foldback_cmd(&tmp, bin.path())
         .args(["sh", "-c", "seq 1 200"])
         .output()
         .unwrap();
@@ -248,7 +248,7 @@ fn p01_generic_long_output_generic_marker() {
     assert!(out.status.success());
     let s = String::from_utf8_lossy(&out.stdout);
 
-    assert!(s.contains("[rawref ref="), "must contain rawref marker");
+    assert!(s.contains("[foldback ref="), "must contain foldback marker");
     assert!(
         !s.contains("view="),
         "generic marker must NOT contain view="
@@ -279,14 +279,17 @@ fn p02_pytest_specialized_byte_exact_single_exec() {
     let counter_path = tmp.path().join("counter_pytest");
     write_pytest_script(&bin.path().join("pytest"), &fixture_path, &counter_path, 0);
 
-    // Run rawref pytest (>100 lines → threshold exceeded → specialized reducer)
-    let out = rawref_cmd(&tmp, bin.path()).arg("pytest").output().unwrap();
+    // Run foldback pytest (>100 lines → threshold exceeded → specialized reducer)
+    let out = foldback_cmd(&tmp, bin.path())
+        .arg("pytest")
+        .output()
+        .unwrap();
 
     assert!(out.status.success(), "pytest exit 0 must propagate");
     let s = String::from_utf8_lossy(&out.stdout);
 
     // Specialized marker fields
-    assert!(s.contains("[rawref ref="), "must contain rawref marker");
+    assert!(s.contains("[foldback ref="), "must contain foldback marker");
     assert!(s.contains("view=pytest"), "must contain view=pytest");
     assert!(
         s.contains("recoverability=retrievable"),
@@ -297,8 +300,8 @@ fn p02_pytest_specialized_byte_exact_single_exec() {
         "specialized marker must NOT contain omitted="
     );
 
-    // Marker must be on its own line (byte immediately before "[rawref" must be '\n')
-    let marker_pos = s.find("[rawref ref=").expect("marker must be present");
+    // Marker must be on its own line (byte immediately before "[foldback" must be '\n')
+    let marker_pos = s.find("[foldback ref=").expect("marker must be present");
     assert!(marker_pos > 0, "marker must not be the very first byte");
     assert_eq!(
         out.stdout[marker_pos - 1],
@@ -335,7 +338,7 @@ fn p02_pytest_specialized_byte_exact_single_exec() {
 
     // Byte-exact recovery via `output get`
     let ref_id = extract_ref_id(&s).expect("must have ref_id in marker");
-    let recovered = rawref_cmd(&tmp, bin.path())
+    let recovered = foldback_cmd(&tmp, bin.path())
         .args(["output", "get", &ref_id])
         .output()
         .unwrap();
@@ -386,7 +389,7 @@ fn p02b_python3_m_pytest_routing() {
     );
     write_script(&bin.path().join("python3"), &script);
 
-    let out = rawref_cmd(&tmp, bin.path())
+    let out = foldback_cmd(&tmp, bin.path())
         .args(["python3", "-m", "pytest"])
         .output()
         .unwrap();
@@ -426,7 +429,7 @@ fn p03_cargo_test_specialized_byte_exact_single_exec() {
     let counter_path = tmp.path().join("counter_cargo");
     write_cargo_script(&bin.path().join("cargo"), &fixture_path, &counter_path, 0);
 
-    let out = rawref_cmd(&tmp, bin.path())
+    let out = foldback_cmd(&tmp, bin.path())
         .args(["cargo", "test"])
         .output()
         .unwrap();
@@ -435,7 +438,7 @@ fn p03_cargo_test_specialized_byte_exact_single_exec() {
     let s = String::from_utf8_lossy(&out.stdout);
 
     // Specialized marker fields
-    assert!(s.contains("[rawref ref="), "must contain rawref marker");
+    assert!(s.contains("[foldback ref="), "must contain foldback marker");
     assert!(
         s.contains("view=cargo-test"),
         "must contain view=cargo-test"
@@ -450,7 +453,7 @@ fn p03_cargo_test_specialized_byte_exact_single_exec() {
     );
 
     // Marker must be on its own line
-    let marker_pos = s.find("[rawref ref=").expect("marker must be present");
+    let marker_pos = s.find("[foldback ref=").expect("marker must be present");
     assert!(marker_pos > 0);
     assert_eq!(
         out.stdout[marker_pos - 1],
@@ -475,7 +478,7 @@ fn p03_cargo_test_specialized_byte_exact_single_exec() {
 
     // Byte-exact recovery
     let ref_id = extract_ref_id(&s).expect("must have ref_id");
-    let recovered = rawref_cmd(&tmp, bin.path())
+    let recovered = foldback_cmd(&tmp, bin.path())
         .args(["output", "get", &ref_id])
         .output()
         .unwrap();
@@ -505,7 +508,10 @@ fn p04_never_worse_display_strictly_smaller_than_raw() {
     let counter_path = tmp.path().join("counter");
     write_pytest_script(&bin.path().join("pytest"), &fixture_path, &counter_path, 0);
 
-    let out = rawref_cmd(&tmp, bin.path()).arg("pytest").output().unwrap();
+    let out = foldback_cmd(&tmp, bin.path())
+        .arg("pytest")
+        .output()
+        .unwrap();
 
     // The full stdout (condensed content + marker) must be strictly < raw bytes
     let display_len = out.stdout.len();
@@ -554,7 +560,10 @@ fn p05_parsefail_falls_back_to_generic_no_view() {
     let counter_path = tmp.path().join("counter");
     write_pytest_script(&bin.path().join("pytest"), &fixture_path, &counter_path, 0);
 
-    let out = rawref_cmd(&tmp, bin.path()).arg("pytest").output().unwrap();
+    let out = foldback_cmd(&tmp, bin.path())
+        .arg("pytest")
+        .output()
+        .unwrap();
 
     let s = String::from_utf8_lossy(&out.stdout);
 
@@ -565,7 +574,7 @@ fn p05_parsefail_falls_back_to_generic_no_view() {
     );
 
     // Must fall through to generic condenser → generic marker with omitted=
-    if s.contains("[rawref ref=") {
+    if s.contains("[foldback ref=") {
         assert!(
             s.contains("omitted="),
             "generic fallback marker must contain omitted="
@@ -603,10 +612,13 @@ fn p06_non_utf8_generic_output_get_byte_exact() {
         "#!/bin/sh\ncat {fixture}\n",
         fixture = fixture_path.display()
     );
-    // Name the script "pytest" so rawref's argv normalizer matches it
+    // Name the script "pytest" so foldback's argv normalizer matches it
     write_script(&bin.path().join("pytest"), &script);
 
-    let out = rawref_cmd(&tmp, bin.path()).arg("pytest").output().unwrap();
+    let out = foldback_cmd(&tmp, bin.path())
+        .arg("pytest")
+        .output()
+        .unwrap();
 
     let s_lossy = String::from_utf8_lossy(&out.stdout);
 
@@ -618,7 +630,7 @@ fn p06_non_utf8_generic_output_get_byte_exact() {
 
     // If a ref was captured (generic condensed), verify byte-exact recovery
     if let Some(ref_id) = extract_ref_id(&s_lossy) {
-        let recovered = rawref_cmd(&tmp, bin.path())
+        let recovered = foldback_cmd(&tmp, bin.path())
             .args(["output", "get", &ref_id])
             .output()
             .unwrap();
@@ -651,13 +663,16 @@ fn p07_short_output_passthrough_no_marker() {
     let counter_path = tmp.path().join("counter");
     write_pytest_script(&bin.path().join("pytest"), &fixture_path, &counter_path, 0);
 
-    let out = rawref_cmd(&tmp, bin.path()).arg("pytest").output().unwrap();
+    let out = foldback_cmd(&tmp, bin.path())
+        .arg("pytest")
+        .output()
+        .unwrap();
 
     let s = String::from_utf8_lossy(&out.stdout);
 
     // Short output → raw passthrough (no marker injected)
     assert!(
-        !s.contains("[rawref ref="),
+        !s.contains("[foldback ref="),
         "short output must not produce a marker"
     );
     // Original content must appear verbatim
@@ -682,8 +697,8 @@ fn p08_collect_only_gate_generic_not_specialized() {
     let counter_path = tmp.path().join("counter");
     write_pytest_script(&bin.path().join("pytest"), &fixture_path, &counter_path, 0);
 
-    // rawref normalizes: pytest + ["--collect-only"] → Pytest; reducer detects gate
-    let out = rawref_cmd(&tmp, bin.path())
+    // foldback normalizes: pytest + ["--collect-only"] → Pytest; reducer detects gate
+    let out = foldback_cmd(&tmp, bin.path())
         .args(["pytest", "--collect-only"])
         .output()
         .unwrap();
@@ -697,7 +712,7 @@ fn p08_collect_only_gate_generic_not_specialized() {
     );
     // Generic fallback: marker present with omitted=
     assert!(
-        s.contains("[rawref ref=") && s.contains("omitted="),
+        s.contains("[foldback ref=") && s.contains("omitted="),
         "--collect-only must produce generic marker with omitted="
     );
 }
@@ -717,8 +732,8 @@ fn p08b_message_format_json_gate_generic_not_specialized() {
     let counter_path = tmp.path().join("counter");
     write_cargo_script(&bin.path().join("cargo"), &fixture_path, &counter_path, 0);
 
-    // rawref: cargo + ["test", "--message-format=json"] → CargoTest; reducer detects gate
-    let out = rawref_cmd(&tmp, bin.path())
+    // foldback: cargo + ["test", "--message-format=json"] → CargoTest; reducer detects gate
+    let out = foldback_cmd(&tmp, bin.path())
         .args(["cargo", "test", "--message-format=json"])
         .output()
         .unwrap();
@@ -730,13 +745,13 @@ fn p08b_message_format_json_gate_generic_not_specialized() {
         "--message-format=json must skip specialized reducer (no view=cargo-test)"
     );
     assert!(
-        s.contains("[rawref ref=") && s.contains("omitted="),
+        s.contains("[foldback ref=") && s.contains("omitted="),
         "--message-format=json must produce generic marker with omitted="
     );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// p09 — RAWREF_REDUCERS=0 → generic behaviour, no view=
+// p09 — FOLDBACK_REDUCERS=0 → generic behaviour, no view=
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
@@ -750,9 +765,9 @@ fn p09_reducers_disabled_generic_no_view() {
     let counter_path = tmp.path().join("counter");
     write_pytest_script(&bin.path().join("pytest"), &fixture_path, &counter_path, 0);
 
-    let out = rawref_cmd(&tmp, bin.path())
+    let out = foldback_cmd(&tmp, bin.path())
         .arg("pytest")
-        .env("RAWREF_REDUCERS", "0")
+        .env("FOLDBACK_REDUCERS", "0")
         .output()
         .unwrap();
 
@@ -761,12 +776,12 @@ fn p09_reducers_disabled_generic_no_view() {
     // No specialized view with reducers disabled
     assert!(
         !s.contains("view="),
-        "RAWREF_REDUCERS=0 must not produce view= field"
+        "FOLDBACK_REDUCERS=0 must not produce view= field"
     );
     // Generic condenser must still run
     assert!(
-        s.contains("[rawref ref=") && s.contains("omitted="),
-        "RAWREF_REDUCERS=0 must still produce generic marker with omitted="
+        s.contains("[foldback ref=") && s.contains("omitted="),
+        "FOLDBACK_REDUCERS=0 must still produce generic marker with omitted="
     );
 }
 
@@ -781,7 +796,7 @@ fn p10_unmatched_command_generic_equivalent() {
 
     // `git diff` is unmatched → NormalizedCommand::Generic
     // Use `sh -c "seq 1 200"` as a deterministic unmatched command
-    let out = rawref_cmd(&tmp, bin.path())
+    let out = foldback_cmd(&tmp, bin.path())
         .args(["sh", "-c", "seq 1 200"])
         .output()
         .unwrap();
@@ -790,7 +805,7 @@ fn p10_unmatched_command_generic_equivalent() {
     let s = String::from_utf8_lossy(&out.stdout);
 
     // Unmatched: must use generic pipeline only
-    assert!(s.contains("[rawref ref="), "must have rawref marker");
+    assert!(s.contains("[foldback ref="), "must have foldback marker");
     assert!(
         !s.contains("view="),
         "unmatched command must not have view="
@@ -804,7 +819,7 @@ fn p10_unmatched_command_generic_equivalent() {
 // ─────────────────────────────────────────────────────────────────────────────
 // p11 — stash fail-open: no marker, raw output passthrough, child exit preserved
 //
-// Technique: set RAWREF_DATA_DIR to a regular FILE (not a directory).
+// Technique: set FOLDBACK_DATA_DIR to a regular FILE (not a directory).
 // `Stash::open` calls `fs::create_dir_all(data_dir)` which fails with EEXIST
 // when the path already exists as a file, reliably triggering fail-open.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -823,14 +838,14 @@ fn p11_stash_failopen_no_marker_raw_child_exit() {
 
     // Create a REGULAR FILE at the data-dir path to make Stash::open fail.
     // fs::create_dir_all(file_path) returns EEXIST when the path is a file,
-    // so the stash is never opened and rawref goes fail-open.
+    // so the stash is never opened and foldback goes fail-open.
     let fake_data_dir = tmp.path().join("not_a_directory.txt");
     fs::write(&fake_data_dir, b"I am a file, not a directory").unwrap();
 
     let orig_path = std::env::var("PATH").unwrap_or_default();
-    let out = Command::cargo_bin("rawref")
+    let out = Command::cargo_bin("foldback")
         .unwrap()
-        .env("RAWREF_DATA_DIR", &fake_data_dir)
+        .env("FOLDBACK_DATA_DIR", &fake_data_dir)
         .env("PATH", format!("{}:{}", bin.path().display(), orig_path))
         .arg("pytest")
         .output()
@@ -842,11 +857,11 @@ fn p11_stash_failopen_no_marker_raw_child_exit() {
         "fail-open must preserve child exit code 0"
     );
 
-    // Stash open failed → raw passthrough → no rawref ref marker
+    // Stash open failed → raw passthrough → no foldback ref marker
     let s = String::from_utf8_lossy(&out.stdout);
     assert!(
-        !s.contains("[rawref ref="),
-        "stash fail-open must not produce a rawref marker; stdout was:\n{s}"
+        !s.contains("[foldback ref="),
+        "stash fail-open must not produce a foldback marker; stdout was:\n{s}"
     );
 
     // Raw content must be present (fail-open writes raw child stdout verbatim)
@@ -872,7 +887,10 @@ fn p12_pytest_failure_exit_passthrough() {
     // Exit code 1 — standard pytest failure exit
     write_pytest_script(&bin.path().join("pytest"), &fixture_path, &counter_path, 1);
 
-    let out = rawref_cmd(&tmp, bin.path()).arg("pytest").output().unwrap();
+    let out = foldback_cmd(&tmp, bin.path())
+        .arg("pytest")
+        .output()
+        .unwrap();
 
     // Exit code 1 from pytest must be preserved
     assert_eq!(
@@ -882,10 +900,10 @@ fn p12_pytest_failure_exit_passthrough() {
     );
 
     let s = String::from_utf8_lossy(&out.stdout);
-    // A rawref marker must still be present (stash succeeded)
+    // A foldback marker must still be present (stash succeeded)
     assert!(
-        s.contains("[rawref ref="),
-        "must have rawref marker even on failure"
+        s.contains("[foldback ref="),
+        "must have foldback marker even on failure"
     );
     // Specialized view expected (output is well-formed with final summary)
     assert!(
@@ -917,7 +935,7 @@ fn p12b_cargo_failure_exit_view_present() {
     // Cargo test exits 101 on failure
     write_cargo_script(&bin.path().join("cargo"), &fixture_path, &counter_path, 101);
 
-    let out = rawref_cmd(&tmp, bin.path())
+    let out = foldback_cmd(&tmp, bin.path())
         .args(["cargo", "test"])
         .output()
         .unwrap();
@@ -930,8 +948,8 @@ fn p12b_cargo_failure_exit_view_present() {
 
     let s = String::from_utf8_lossy(&out.stdout);
     assert!(
-        s.contains("[rawref ref="),
-        "must have rawref marker on cargo failure"
+        s.contains("[foldback ref="),
+        "must have foldback marker on cargo failure"
     );
     assert!(
         s.contains("view=cargo-test"),
@@ -964,13 +982,13 @@ fn p13_marker_contract_generic_vs_specialized() {
     let tmp_gen = TempDir::new().unwrap();
     let bin_gen = TempDir::new().unwrap();
 
-    let gen_out = rawref_cmd(&tmp_gen, bin_gen.path())
+    let gen_out = foldback_cmd(&tmp_gen, bin_gen.path())
         .args(["sh", "-c", "seq 1 200"])
         .output()
         .unwrap();
     let gen_s = String::from_utf8_lossy(&gen_out.stdout);
 
-    assert!(gen_s.contains("[rawref ref="), "generic must have marker");
+    assert!(gen_s.contains("[foldback ref="), "generic must have marker");
     let gen_ref = extract_ref_id(&gen_s).expect("extract_ref_id must succeed on generic marker");
     assert_eq!(gen_ref.len(), 32, "generic ref must be 32 hex chars");
     assert!(
@@ -997,14 +1015,14 @@ fn p13_marker_contract_generic_vs_specialized() {
         0,
     );
 
-    let spec_out = rawref_cmd(&tmp_spec, bin_spec.path())
+    let spec_out = foldback_cmd(&tmp_spec, bin_spec.path())
         .arg("pytest")
         .output()
         .unwrap();
     let spec_s = String::from_utf8_lossy(&spec_out.stdout);
 
     assert!(
-        spec_s.contains("[rawref ref="),
+        spec_s.contains("[foldback ref="),
         "specialized must have marker"
     );
     let spec_ref =
@@ -1024,7 +1042,9 @@ fn p13_marker_contract_generic_vs_specialized() {
     );
 
     // Marker must occupy its own line
-    let pos = spec_s.find("[rawref ref=").expect("marker must be present");
+    let pos = spec_s
+        .find("[foldback ref=")
+        .expect("marker must be present");
     assert!(pos > 0);
     assert_eq!(
         spec_out.stdout[pos - 1],
@@ -1073,7 +1093,7 @@ fn p14_cargo_stderr_compile_errors_no_specialized_view() {
     );
     write_script(&bin.path().join("cargo"), &script);
 
-    let out = rawref_cmd(&tmp, bin.path())
+    let out = foldback_cmd(&tmp, bin.path())
         .args(["cargo", "test"])
         .output()
         .unwrap();
@@ -1093,7 +1113,7 @@ fn p14_cargo_stderr_compile_errors_no_specialized_view() {
         !stderr_s.contains("view=cargo-test"),
         "compile error stderr must not have view=cargo-test"
     );
-    // stderr note: rawref may emit its own stash-related messages on stderr too;
+    // stderr note: foldback may emit its own stash-related messages on stderr too;
     // the critical invariant is absence of view=cargo-test
 }
 
@@ -1112,7 +1132,10 @@ fn p15_success_pytest_no_failed_text() {
     let counter_path = tmp.path().join("counter");
     write_pytest_script(&bin.path().join("pytest"), &fixture_path, &counter_path, 0);
 
-    let out = rawref_cmd(&tmp, bin.path()).arg("pytest").output().unwrap();
+    let out = foldback_cmd(&tmp, bin.path())
+        .arg("pytest")
+        .output()
+        .unwrap();
 
     let s = String::from_utf8_lossy(&out.stdout);
 

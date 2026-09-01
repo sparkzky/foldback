@@ -1,34 +1,34 @@
-# rawref
+# foldback
 
 **Reversible CLI output capture** — run a command once, see condensed terminal output
 immediately, recover the full byte-exact stream later via a short ref handle.
 
-rawref is an **independent Rust CLI**. It references the *design ideas* behind
+foldback is an **independent Rust CLI**. It references the *design ideas* behind
 [RTK](https://github.com/rtk-ai/rtk) and
 [ANOLISA Tokenless](https://github.com/alibaba/anolisa/tree/main/src/tokenless),
 but **does not fork RTK, does not copy their source code, and is not compatible
 with either project**. Storage format, CLI surface, and correctness contracts are
-rawref's own.
+foldback's own.
 
 ---
 
 ## Why not just `tee` or RTK?
 
-| | **tee** | **RTK** | **rawref** |
+| | **tee** | **RTK** | **foldback** |
 |---|---------|---------|------------|
-| Invocation | wrap command | transparent hook / filter | explicit `rawref <cmd>` prefix |
+| Invocation | wrap command | transparent hook / filter | explicit `foldback <cmd>` prefix |
 | Terminal view | full output | often lossy compression | condensed head/tail + ref marker |
 | Full output | file on disk (you manage paths) | often **not** recoverable on success | **always** stashed before condensing |
-| Retrieval | `cat` the file | re-run or limited undo | `rawref output get/tail/grep <ref>` |
+| Retrieval | `cat` the file | re-run or limited undo | `foldback output get/tail/grep <ref>` |
 | Exit code | passthrough | passthrough | child exit code always passthrough |
 
-**vs `tee`:** rawref automatically condenses long output for the terminal, assigns
+**vs `tee`:** foldback automatically condenses long output for the terminal, assigns
 an opaque ref, and stores stdout/stderr separately with metadata (command, cwd,
 SHA-256, TTL). You do not pick filenames or remember paths.
 
 **vs RTK:** RTK focuses on shrinking what the agent sees, often irreversibly on
-successful runs. rawref's **raw-first** rule means complete stdout/stderr bytes
-are written to local storage *before* any condensing. If storage fails, rawref
+successful runs. foldback's **raw-first** rule means complete stdout/stderr bytes
+are written to local storage *before* any condensing. If storage fails, foldback
 **fail-opens** — it prints the original output and still exits with the child's
 code.
 
@@ -44,13 +44,13 @@ cargo install --path .
 
 # Or build and copy manually
 cargo build --release
-cp target/release/rawref ~/.local/bin/
+cp target/release/foldback ~/.local/bin/
 ```
 
 Verify:
 
 ```bash
-rawref echo hello
+foldback echo hello
 # hello
 ```
 
@@ -61,25 +61,25 @@ rawref echo hello
 Isolated storage for one session:
 
 ```bash
-export RAWREF_DATA_DIR="$(mktemp -d)"
+export FOLDBACK_DATA_DIR="$(mktemp -d)"
 
 # Long output is condensed; a ref marker is inserted
-rawref sh -c "seq 1 200"
+foldback sh -c "seq 1 200"
 # 1 … 20
-# [rawref ref=<32-hex> raw=…b lines=200 omitted=… expires=…Z]
+# [foldback ref=<32-hex> raw=…b lines=200 omitted=… expires=…Z]
 # 181 … 200
 
 # Copy the 32-char hex ref from the marker, then recover byte-exact stdout
 REF="<paste-ref-here>"
-rawref output get "$REF" | shasum -a 256
-rawref output info "$REF"
+foldback output get "$REF" | shasum -a 256
+foldback output info "$REF"
 ```
 
 Cleanup:
 
 ```bash
-rawref output purge --expired   # removes refs past TTL
-rm -rf "$RAWREF_DATA_DIR"
+foldback output purge --expired   # removes refs past TTL
+rm -rf "$FOLDBACK_DATA_DIR"
 ```
 
 ---
@@ -89,16 +89,16 @@ rm -rf "$RAWREF_DATA_DIR"
 ### RTK-style direct prefix (main path)
 
 ```
-rawref <command> [args...]
+foldback <command> [args...]
 ```
 
 Examples:
 
 ```bash
-rawref git diff
-rawref pytest -q tests/
-rawref cargo test --lib
-rawref sh -c "seq 1 200"
+foldback git diff
+foldback pytest -q tests/
+foldback cargo test --lib
+foldback sh -c "seq 1 200"
 ```
 
 Behavior:
@@ -118,7 +118,7 @@ Long output shows head (20 lines) + marker + tail (20 lines):
 2
 …
 20
-[rawref ref=059c83636c8ec30177c6c188d63fb55e raw=892b lines=200 omitted=160 expires=2026-09-07T08:54:42Z]
+[foldback ref=059c83636c8ec30177c6c188d63fb55e raw=892b lines=200 omitted=160 expires=2026-09-07T08:54:42Z]
 181
 182
 …
@@ -128,19 +128,19 @@ Long output shows head (20 lines) + marker + tail (20 lines):
 Marker fields: `ref` (32 lowercase hex chars), `raw` (original byte length),
 `lines`, `omitted`, `expires` (UTC RFC 3339).
 
-### Escape hatch — `rawref run --`
+### Escape hatch — `foldback run --`
 
-The first argument `output` and `run` are reserved for rawref itself. To execute
+The first argument `output` and `run` are reserved for foldback itself. To execute
 an external command literally named `output` or `run`:
 
 ```bash
-rawref run -- output --help
-rawref run -- run --version
+foldback run -- output --help
+foldback run -- run --version
 ```
 
-Syntax: `rawref run -- <command> [args...]`
+Syntax: `foldback run -- <command> [args...]`
 
-### Recover captured output — `rawref output …`
+### Recover captured output — `foldback output …`
 
 Recovery commands **never condense**. They write raw bytes to stdout.
 
@@ -154,26 +154,26 @@ Recovery commands **never condense**. They write raw bytes to stdout.
 
 ```bash
 # Full stdout (default channel)
-rawref output get "$REF"
+foldback output get "$REF"
 
 # Specific channel or byte slice
-rawref output get "$REF" --channel stderr
-rawref output get "$REF" --channel both
-rawref output get "$REF" --offset 1024 --limit 4096
+foldback output get "$REF" --channel stderr
+foldback output get "$REF" --channel both
+foldback output get "$REF" --offset 1024 --limit 4096
 
 # Last N lines (stdout or stderr only)
-rawref output tail "$REF" --lines 20
-rawref output tail "$REF" --channel stderr --lines 5
+foldback output tail "$REF" --lines 20
+foldback output tail "$REF" --channel stderr --lines 5
 
 # Literal substring match (not regex)
-rawref output grep "$REF" "ERROR"
-rawref output grep "$REF" "item 1" --channel stdout
+foldback output grep "$REF" "ERROR"
+foldback output grep "$REF" "item 1" --channel stdout
 
 # Metadata (command, cwd, sizes, SHA-256, expiry)
-rawref output info "$REF"
+foldback output info "$REF"
 
 # Housekeeping
-rawref output purge --expired
+foldback output purge --expired
 # purged 3 expired ref(s)
 ```
 
@@ -185,19 +185,19 @@ rawref output purge --expired
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `RAWREF_DATA_DIR` | `$XDG_DATA_HOME/rawref` or `~/.local/share/rawref` | Stash root (SQLite + blobs) |
-| `XDG_DATA_HOME` | `~/.local/share` | Used when `RAWREF_DATA_DIR` is unset |
+| `FOLDBACK_DATA_DIR` | `$XDG_DATA_HOME/foldback` or `~/.local/share/foldback` | Stash root (SQLite + blobs) |
+| `XDG_DATA_HOME` | `~/.local/share` | Used when `FOLDBACK_DATA_DIR` is unset |
 
-Set `RAWREF_DATA_DIR` to isolate projects, CI runs, or tests:
+Set `FOLDBACK_DATA_DIR` to isolate projects, CI runs, or tests:
 
 ```bash
-RAWREF_DATA_DIR=/tmp/my-rawref rawref echo test
+FOLDBACK_DATA_DIR=/tmp/my-foldback foldback echo test
 ```
 
 Layout:
 
 ```text
-$RAWREF_DATA_DIR/
+$FOLDBACK_DATA_DIR/
 ├── meta.db          # SQLite (WAL)
 └── blobs/
     ├── <ref_id>.stdout
@@ -210,24 +210,24 @@ $RAWREF_DATA_DIR/
 
 ### Raw-first
 
-For every passthrough run, rawref attempts to persist **complete** stdout and
+For every passthrough run, foldback attempts to persist **complete** stdout and
 stderr **before** condensing anything for display. Condensing reads the in-memory
 capture; it does not replace what was stored.
 
-If stash open/write fails, rawref prints the **original** stdout/stderr (fail-open),
+If stash open/write fails, foldback prints the **original** stdout/stderr (fail-open),
 logs a warning on stderr, and still returns the child's exit code. No ref marker
 is emitted in that case.
 
 ### Byte-exact recovery
 
-`rawref output get` returns stored bytes unchanged. Invalid UTF-8 and binary data
+`foldback output get` returns stored bytes unchanged. Invalid UTF-8 and binary data
 are preserved. `output info` records per-channel SHA-256 digests for verification.
 
 The underlying command is **never re-run** on get/tail/grep/info.
 
 ### Exit codes
 
-**Passthrough** (`rawref <cmd>` / `rawref run -- …`):
+**Passthrough** (`foldback <cmd>` / `foldback run -- …`):
 
 | Situation | Exit code |
 |-----------|-----------|
@@ -236,7 +236,7 @@ The underlying command is **never re-run** on get/tail/grep/info.
 | Command not found / exec failure | `127` |
 | Stash failure | **child's code** (fail-open) |
 
-**Management** (`rawref output …`):
+**Management** (`foldback output …`):
 
 | Code | Meaning |
 |------|---------|
@@ -245,7 +245,7 @@ The underlying command is **never re-run** on get/tail/grep/info.
 | 2 | Bad input / invalid ref format / missing args |
 | 3 | Internal storage or I/O error |
 
-Management codes (0–3) are separate from passthrough codes. Calling `rawref` with
+Management codes (0–3) are separate from passthrough codes. Calling `foldback` with
 no arguments prints usage and exits **2**.
 
 Ref IDs must be exactly **32 ASCII hex characters**; otherwise exit **2**.
@@ -258,21 +258,21 @@ Ref IDs must be exactly **32 ASCII hex characters**; otherwise exit **2**.
 
 ```bash
 # Long pytest output is condensed to show failures, errors, and warnings summary
-rawref pytest tests/ --tb=short
+foldback pytest tests/ --tb=short
 # [condensed stdout with failure blocks, short test summary, warnings]
-# [rawref ref=<32-hex> raw=<bytes>b lines=<n> view=pytest mode=summary recoverability=retrievable expires=…Z]
+# [foldback ref=<32-hex> raw=<bytes>b lines=<n> view=pytest mode=summary recoverability=retrievable expires=…Z]
 
 # Note: pytest with -v/--verbose gates to generic condensing (see below)
 
 # Long cargo test output is condensed to show failed test names and blocks
-rawref cargo test --lib -- --nocapture
+foldback cargo test --lib -- --nocapture
 # [condensed stdout with failed test names, failure blocks, final summary]
-# [rawref ref=<32-hex> raw=<bytes>b lines=<n> view=cargo-test mode=summary recoverability=retrievable expires=…Z]
+# [foldback ref=<32-hex> raw=<bytes>b lines=<n> view=cargo-test mode=summary recoverability=retrievable expires=…Z]
 
 # Unknown commands use generic head/tail condensing
-rawref seq 1 500
+foldback seq 1 500
 # [head 20 lines]
-# [rawref ref=<32-hex> raw=<bytes>b lines=<n> omitted=<m> expires=…Z]
+# [foldback ref=<32-hex> raw=<bytes>b lines=<n> omitted=<m> expires=…Z]
 # [tail 20 lines]
 ```
 
@@ -280,16 +280,16 @@ rawref seq 1 500
 
 ```bash
 # pytest: -v, -vv, --verbose, --collect-only, --json-report, --junitxml → uses generic
-rawref pytest tests/ -v          # Falls back to generic head/tail (no view= in marker)
+foldback pytest tests/ -v          # Falls back to generic head/tail (no view= in marker)
 
 # cargo: --message-format=json, --message-format=terse → uses generic
-rawref cargo test --message-format json  # Falls back to generic head/tail
+foldback cargo test --message-format json  # Falls back to generic head/tail
 ```
 
 **Opt out** of all specialized reduction (Phase 1 generic head/tail only):
 
 ```bash
-RAWREF_REDUCERS=0 rawref pytest tests/
+FOLDBACK_REDUCERS=0 foldback pytest tests/
 # [always uses Phase 1 generic condenser, no view= field in marker]
 ```
 
@@ -309,7 +309,7 @@ RAWREF_REDUCERS=0 rawref pytest tests/
 - `recoverability` — always `retrievable` (full raw stashed via `output get`)
 - **Note**: specialized marker does **not** include `omitted=` (content is semantically recomposed, not truncated)
 
-**Inline vs. end-to-end**: Specialized summary is **lossy on the terminal** (progress lines etc. removed) but **fully recoverable** via `rawref output get <ref>`.
+**Inline vs. end-to-end**: Specialized summary is **lossy on the terminal** (progress lines etc. removed) but **fully recoverable** via `foldback output get <ref>`.
 
 ---
 
@@ -317,7 +317,7 @@ RAWREF_REDUCERS=0 rawref pytest tests/
 
 These are **not** implemented yet; do not expect them to work:
 
-- **No transparent hook** — agents must explicitly prefix commands with `rawref`
+- **No transparent hook** — agents must explicitly prefix commands with `foldback`
   (no Cursor/Claude command rewriting).
 - **No interactive TTY** — piped capture only; editors, password prompts, and
   interactive shells will not behave correctly.
@@ -331,7 +331,7 @@ These are **not** implemented yet; do not expect them to work:
 - **No stdout/stderr interleaving** — channels are stored separately; original
   cross-channel timing is lost. `--channel both` returns stdout bytes then stderr
   bytes.
-- **Shell builtins** — use `rawref sh -c '…'`; rawref execs argv[0] directly.
+- **Shell builtins** — use `foldback sh -c '…'`; foldback execs argv[0] directly.
 - **Full capture in memory** — very large output loads entirely into RAM; no
   spill-to-disk yet.
 - **No disk quota** — oversized command output can fill the volume.
@@ -342,15 +342,15 @@ These are **not** implemented yet; do not expect them to work:
 
 ## Privacy and disk use
 
-rawref writes **everything** the command prints to **local disk**:
+foldback writes **everything** the command prints to **local disk**:
 
 - Blob files are owner-read/write only (`0600`).
 - Default **TTL is 7 days**; expired refs refuse reads (exit 1).
 - Ref IDs are random 128-bit values — not derived from content.
 
 **Threat model:** anyone with access to your user account (or a backup of
-`RAWREF_DATA_DIR`) can read captured command output, which may include secrets,
-tokens, or private paths. Use an isolated `RAWREF_DATA_DIR` for sensitive work,
+`FOLDBACK_DATA_DIR`) can read captured command output, which may include secrets,
+tokens, or private paths. Use an isolated `FOLDBACK_DATA_DIR` for sensitive work,
 purge expired refs, and avoid wrapping commands that emit credentials.
 
 Stash failure is fail-open: you still see output in the terminal even when disk
@@ -360,15 +360,15 @@ writes fail.
 
 ## Design references
 
-rawref's condensed-output and reversible-stash **ideas** were informed by:
+foldback's condensed-output and reversible-stash **ideas** were informed by:
 
 - **[RTK](https://github.com/rtk-ai/rtk)** — CLI output reduction for agent
   contexts. Referenced for approach, not code.
 - **[ANOLISA Tokenless](https://github.com/alibaba/anolisa/tree/main/src/tokenless)** —
-  reversible stash protocol in agent frameworks. rawref exposes similar recovery
+  reversible stash protocol in agent frameworks. foldback exposes similar recovery
   via explicit CLI (`output get`) instead of in-framework hooks.
 
-No source from either project was copied. rawref is MIT-licensed independently.
+No source from either project was copied. foldback is MIT-licensed independently.
 
 Further reading for maintainers:
 

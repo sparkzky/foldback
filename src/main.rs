@@ -1,16 +1,16 @@
 use std::path::PathBuf;
 use std::process;
 
-use rawref_lib::{
+use foldback_lib::{
     argv,
     commands::{get, grep, info, purge, tail},
     display::{self, context::CommandContext, registry::Registry},
-    error::RawrefError,
+    error::FoldbackError,
     runner,
     stash::{Channel, SaveArgs, Stash, DEFAULT_TTL_SECS},
 };
 
-// ── rawref management exit codes (documented; do not overlap 0–127) ─────────
+// ── foldback management exit codes (documented; do not overlap 0–127) ────────
 // 0   success
 // 1   ref not found / expired
 // 2   bad input / invalid ref format
@@ -18,28 +18,28 @@ use rawref_lib::{
 // Passthrough mode always exits with the child process's exit code.
 
 fn data_dir() -> Result<PathBuf, String> {
-    // Priority 1: RAWREF_DATA_DIR (full path, used as-is)
-    if let Ok(d) = std::env::var("RAWREF_DATA_DIR") {
+    // Priority 1: FOLDBACK_DATA_DIR (full path, used as-is)
+    if let Ok(d) = std::env::var("FOLDBACK_DATA_DIR") {
         if !d.is_empty() {
             return Ok(PathBuf::from(d));
         }
     }
-    // Priority 2: XDG_DATA_HOME/<rawref>
+    // Priority 2: XDG_DATA_HOME/<foldback>
     if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
         if !xdg.is_empty() {
-            return Ok(PathBuf::from(xdg).join("rawref"));
+            return Ok(PathBuf::from(xdg).join("foldback"));
         }
     }
-    // Priority 3: HOME/.local/share/rawref
+    // Priority 3: HOME/.local/share/foldback
     if let Ok(home) = std::env::var("HOME") {
         if !home.is_empty() {
             return Ok(PathBuf::from(home)
                 .join(".local")
                 .join("share")
-                .join("rawref"));
+                .join("foldback"));
         }
     }
-    Err("cannot determine data dir: set RAWREF_DATA_DIR, XDG_DATA_HOME, or HOME".into())
+    Err("cannot determine data dir: set FOLDBACK_DATA_DIR, XDG_DATA_HOME, or HOME".into())
 }
 
 fn main() {
@@ -56,7 +56,7 @@ fn main() {
             process::exit(code);
         }
         "run" => {
-            // rawref run -- <cmd> [args...]
+            // foldback run -- <cmd> [args...]
             match raw_args.iter().position(|a| a == "--") {
                 Some(dash) if dash + 1 < raw_args.len() => {
                     let cmd_args = &raw_args[dash + 1..];
@@ -64,7 +64,7 @@ fn main() {
                     process::exit(code);
                 }
                 _ => {
-                    eprintln!("rawref run: missing -- separator\nUsage: rawref run -- <command> [args...]");
+                    eprintln!("foldback run: missing -- separator\nUsage: foldback run -- <command> [args...]");
                     process::exit(2);
                 }
             }
@@ -83,7 +83,7 @@ fn handle_run(command: &str, args: &[String]) -> i32 {
     let captured = match runner::capture(command, args) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("rawref: failed to execute '{command}': {e}");
+            eprintln!("foldback: failed to execute '{command}': {e}");
             return 127; // command not found convention
         }
     };
@@ -91,7 +91,7 @@ fn handle_run(command: &str, args: &[String]) -> i32 {
     // Attempt stash write; fail-open on any error.
     let stash_result: Option<(String, chrono::DateTime<chrono::Utc>)> = match data_dir() {
         Err(e) => {
-            eprintln!("[rawref] stash unavailable (fail-open): {e}");
+            eprintln!("[foldback] stash unavailable (fail-open): {e}");
             None
         }
         Ok(dir) => match Stash::open(&dir) {
@@ -107,13 +107,13 @@ fn handle_run(command: &str, args: &[String]) -> i32 {
                 }) {
                     Ok(r) => Some(r),
                     Err(e) => {
-                        eprintln!("[rawref] stash write failed (fail-open): {e}");
+                        eprintln!("[foldback] stash write failed (fail-open): {e}");
                         None
                     }
                 }
             }
             Err(e) => {
-                eprintln!("[rawref] stash open failed (fail-open): {e}");
+                eprintln!("[foldback] stash open failed (fail-open): {e}");
                 None
             }
         },
@@ -123,9 +123,9 @@ fn handle_run(command: &str, args: &[String]) -> i32 {
     let stdout = std::io::stdout();
     let stderr = std::io::stderr();
 
-    // Read RAWREF_REDUCERS env var: only the exact value "0" disables specialised reducers.
+    // Read FOLDBACK_REDUCERS env var: only the exact value "0" disables specialised reducers.
     // Generic head/tail condensing always runs regardless of this flag.
-    let reducers_enabled = std::env::var("RAWREF_REDUCERS").ok().as_deref() != Some("0");
+    let reducers_enabled = std::env::var("FOLDBACK_REDUCERS").ok().as_deref() != Some("0");
     let registry = Registry::default_registry();
 
     match &stash_result {
@@ -160,23 +160,23 @@ fn handle_run(command: &str, args: &[String]) -> i32 {
     captured.exit_code
 }
 
-/// Dispatch `rawref output <subcommand>` management commands.
-/// Returns rawref's own exit code (not child's).
+/// Dispatch `foldback output <subcommand>` management commands.
+/// Returns foldback's own exit code (not child's).
 fn handle_output(args: &[String]) -> i32 {
     if args.is_empty() {
-        eprintln!("rawref output: missing subcommand\nSubcommands: get, tail, grep, info, purge");
+        eprintln!("foldback output: missing subcommand\nSubcommands: get, tail, grep, info, purge");
         return 2;
     }
 
     let stash = match data_dir() {
         Err(e) => {
-            eprintln!("rawref output: cannot open stash: {e}");
+            eprintln!("foldback output: cannot open stash: {e}");
             return 3;
         }
         Ok(dir) => match Stash::open(&dir) {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("rawref output: cannot open stash: {e}");
+                eprintln!("foldback output: cannot open stash: {e}");
                 return 3;
             }
         },
@@ -185,7 +185,7 @@ fn handle_output(args: &[String]) -> i32 {
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
 
-    let result: Result<(), RawrefError> = match args[0].as_str() {
+    let result: Result<(), FoldbackError> = match args[0].as_str() {
         "get" => parse_get(&args[1..], &stash, &mut out),
         "tail" => parse_tail(&args[1..], &stash, &mut out),
         "grep" => parse_grep(&args[1..], &stash, &mut out),
@@ -194,12 +194,12 @@ fn handle_output(args: &[String]) -> i32 {
             if args.get(1).map(|s| s.as_str()) == Some("--expired") {
                 purge::run_expired(&stash, &mut out)
             } else {
-                eprintln!("rawref output purge: use --expired flag");
+                eprintln!("foldback output purge: use --expired flag");
                 return 2;
             }
         }
         other => {
-            eprintln!("rawref output: unknown subcommand '{other}'");
+            eprintln!("foldback output: unknown subcommand '{other}'");
             return 2;
         }
     };
@@ -207,7 +207,7 @@ fn handle_output(args: &[String]) -> i32 {
     match result {
         Ok(()) => 0,
         Err(e) => {
-            eprintln!("rawref: {e}");
+            eprintln!("foldback: {e}");
             e.exit_code()
         }
     }
@@ -219,10 +219,10 @@ fn parse_get(
     args: &[String],
     stash: &Stash,
     out: &mut dyn std::io::Write,
-) -> Result<(), RawrefError> {
-    // rawref output get <ref> [--channel stdout|stderr|both] [--offset N] [--limit N]
+) -> Result<(), FoldbackError> {
+    // foldback output get <ref> [--channel stdout|stderr|both] [--offset N] [--limit N]
     if args.is_empty() {
-        return Err(RawrefError::BadInput("get: missing <ref>".into()));
+        return Err(FoldbackError::BadInput("get: missing <ref>".into()));
     }
     let ref_id = &args[0];
     let mut channel = Channel::Stdout;
@@ -236,7 +236,7 @@ fn parse_get(
                 i += 1;
                 channel = args
                     .get(i)
-                    .ok_or_else(|| RawrefError::BadInput("--channel: missing value".into()))?
+                    .ok_or_else(|| FoldbackError::BadInput("--channel: missing value".into()))?
                     .parse()?;
             }
             "--offset" => {
@@ -248,7 +248,7 @@ fn parse_get(
                 limit = Some(parse_u64(args.get(i), "--limit")?);
             }
             other => {
-                return Err(RawrefError::BadInput(format!(
+                return Err(FoldbackError::BadInput(format!(
                     "get: unknown flag '{other}'"
                 )));
             }
@@ -272,10 +272,10 @@ fn parse_tail(
     args: &[String],
     stash: &Stash,
     out: &mut dyn std::io::Write,
-) -> Result<(), RawrefError> {
-    // rawref output tail <ref> [--channel stdout|stderr] [--lines N]
+) -> Result<(), FoldbackError> {
+    // foldback output tail <ref> [--channel stdout|stderr] [--lines N]
     if args.is_empty() {
-        return Err(RawrefError::BadInput("tail: missing <ref>".into()));
+        return Err(FoldbackError::BadInput("tail: missing <ref>".into()));
     }
     let ref_id = &args[0];
     let mut channel = Channel::Stdout;
@@ -288,7 +288,7 @@ fn parse_tail(
                 i += 1;
                 channel = args
                     .get(i)
-                    .ok_or_else(|| RawrefError::BadInput("--channel: missing value".into()))?
+                    .ok_or_else(|| FoldbackError::BadInput("--channel: missing value".into()))?
                     .parse()?;
             }
             "--lines" => {
@@ -296,7 +296,7 @@ fn parse_tail(
                 lines = parse_u64(args.get(i), "--lines")? as usize;
             }
             other => {
-                return Err(RawrefError::BadInput(format!(
+                return Err(FoldbackError::BadInput(format!(
                     "tail: unknown flag '{other}'"
                 )));
             }
@@ -305,7 +305,7 @@ fn parse_tail(
     }
 
     if channel == Channel::Both {
-        return Err(RawrefError::BadInput(
+        return Err(FoldbackError::BadInput(
             "tail --channel: 'both' is not valid; use 'stdout' or 'stderr'".into(),
         ));
     }
@@ -325,10 +325,10 @@ fn parse_grep(
     args: &[String],
     stash: &Stash,
     out: &mut dyn std::io::Write,
-) -> Result<(), RawrefError> {
-    // rawref output grep <ref> <pattern> [--channel stdout|stderr|both]
+) -> Result<(), FoldbackError> {
+    // foldback output grep <ref> <pattern> [--channel stdout|stderr|both]
     if args.len() < 2 {
-        return Err(RawrefError::BadInput(
+        return Err(FoldbackError::BadInput(
             "grep: missing <ref> <pattern>".into(),
         ));
     }
@@ -343,11 +343,11 @@ fn parse_grep(
                 i += 1;
                 channel = args
                     .get(i)
-                    .ok_or_else(|| RawrefError::BadInput("--channel: missing value".into()))?
+                    .ok_or_else(|| FoldbackError::BadInput("--channel: missing value".into()))?
                     .parse()?;
             }
             other => {
-                return Err(RawrefError::BadInput(format!(
+                return Err(FoldbackError::BadInput(format!(
                     "grep: unknown flag '{other}'"
                 )));
             }
@@ -370,17 +370,17 @@ fn parse_info(
     args: &[String],
     stash: &Stash,
     out: &mut dyn std::io::Write,
-) -> Result<(), RawrefError> {
+) -> Result<(), FoldbackError> {
     let ref_id = args
         .first()
-        .ok_or_else(|| RawrefError::BadInput("info: missing <ref>".into()))?;
+        .ok_or_else(|| FoldbackError::BadInput("info: missing <ref>".into()))?;
     info::run(stash, ref_id, out)
 }
 
-fn parse_u64(val: Option<&String>, flag: &str) -> Result<u64, RawrefError> {
-    val.ok_or_else(|| RawrefError::BadInput(format!("{flag}: missing value")))?
+fn parse_u64(val: Option<&String>, flag: &str) -> Result<u64, FoldbackError> {
+    val.ok_or_else(|| FoldbackError::BadInput(format!("{flag}: missing value")))?
         .parse::<u64>()
-        .map_err(|_| RawrefError::BadInput(format!("{flag}: expected non-negative integer")))
+        .map_err(|_| FoldbackError::BadInput(format!("{flag}: expected non-negative integer")))
 }
 
 fn write_passthrough_output(
@@ -390,31 +390,31 @@ fn write_passthrough_output(
     stderr_data: &[u8],
 ) {
     if let Err(e) = out_writer.write_all(stdout_data) {
-        let _ = writeln!(err_writer, "[rawref] warning: stdout write failed: {e}");
+        let _ = writeln!(err_writer, "[foldback] warning: stdout write failed: {e}");
     }
     if let Err(e) = err_writer.write_all(stderr_data) {
-        let _ = writeln!(out_writer, "[rawref] warning: stderr write failed: {e}");
+        let _ = writeln!(out_writer, "[foldback] warning: stderr write failed: {e}");
     }
 }
 
 fn print_usage() {
     eprintln!(concat!(
-        "rawref \u{2014} reversible CLI output capture\n",
+        "foldback \u{2014} reversible CLI output capture\n",
         "\n",
         "USAGE:\n",
-        "  rawref <command> [args...]               run command (implicit passthrough)\n",
-        "  rawref run -- <command> [args...]        explicit escape hatch\n",
-        "  rawref output get <ref> [flags]          restore captured output\n",
-        "  rawref output tail <ref> [flags]         tail captured output\n",
-        "  rawref output grep <ref> <pat> [flags]   grep captured output\n",
-        "  rawref output info <ref>                 show ref metadata\n",
-        "  rawref output purge --expired            remove expired refs\n",
+        "  foldback <command> [args...]               run command (implicit passthrough)\n",
+        "  foldback run -- <command> [args...]        explicit escape hatch\n",
+        "  foldback output get <ref> [flags]          restore captured output\n",
+        "  foldback output tail <ref> [flags]         tail captured output\n",
+        "  foldback output grep <ref> <pat> [flags]   grep captured output\n",
+        "  foldback output info <ref>                 show ref metadata\n",
+        "  foldback output purge --expired            remove expired refs\n",
         "\n",
-        "RESERVED namespaces: 'output', 'run' -- use 'rawref run -- ...' to\n",
+        "RESERVED namespaces: 'output', 'run' -- use 'foldback run -- ...' to\n",
         "run commands literally named 'output' or 'run'.\n",
         "\n",
         "Environment:\n",
-        "  RAWREF_DATA_DIR   override storage dir (default: ~/.local/share/rawref)\n",
+        "  FOLDBACK_DATA_DIR   override storage dir (default: ~/.local/share/foldback)\n",
         "\n",
         "Exit codes (management commands):\n",
         "  0  success\n",

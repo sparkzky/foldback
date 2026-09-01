@@ -7,11 +7,11 @@ fn line_count(data: &[u8]) -> usize {
     data.iter().filter(|&&b| b == b'\n').count() + if data.last() != Some(&b'\n') { 1 } else { 0 }
 }
 
-/// Build the **specialised** rawref marker for a non-generic reducer output.
+/// Build the **specialised** foldback marker for a non-generic reducer output.
 ///
 /// Format:
 /// ```text
-/// [rawref ref=<32hex> raw=<bytes>b lines=<n> view=<view> mode=summary
+/// [foldback ref=<32hex> raw=<bytes>b lines=<n> view=<view> mode=summary
 ///  recoverability=retrievable expires=<ISO8601Z>]
 /// ```
 ///
@@ -28,7 +28,7 @@ pub fn build_specialized_marker(
     let raw_bytes = raw.len();
     let total_lines = line_count(raw);
     format!(
-        "[rawref ref={ref_id} raw={raw_bytes}b lines={total_lines} view={view} mode=summary recoverability=retrievable expires={}]\n",
+        "[foldback ref={ref_id} raw={raw_bytes}b lines={total_lines} view={view} mode=summary recoverability=retrievable expires={}]\n",
         expires_at.format("%Y-%m-%dT%H:%M:%SZ")
     )
     .into_bytes()
@@ -113,7 +113,7 @@ mod tests {
     }
 
     #[test]
-    fn test_specialized_marker_starts_with_rawref_prefix() {
+    fn test_specialized_marker_starts_with_foldback_prefix() {
         let raw = raw_200_lines();
         let marker = build_specialized_marker(
             "abc123def456abc123def456abc123de",
@@ -123,8 +123,8 @@ mod tests {
         );
         let s = String::from_utf8(marker).expect("marker must be UTF-8");
         assert!(
-            s.starts_with("[rawref ref="),
-            "marker must start with [rawref ref="
+            s.starts_with("[foldback ref="),
+            "marker must start with [foldback ref="
         );
     }
 
